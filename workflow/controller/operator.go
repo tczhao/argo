@@ -547,7 +547,7 @@ func (woc *wfOperationCtx) persistUpdates(ctx context.Context) {
 			woc.persistWorkflowSizeLimitErr(ctx, wfClient, err)
 			return
 		}
-		if !apierr.IsConflict(err) {
+		if !apierr.IsConflict(err) && !apierr.IsTimeout(err) {
 			return
 		}
 		woc.log.Info("Re-applying updates on latest version and retrying update")
@@ -663,6 +663,7 @@ func (woc *wfOperationCtx) reapplyUpdate(ctx context.Context, wfClient v1alpha1.
 	}
 	// Next get latest version of the workflow, apply the patch and retry the update
 	attempt := 1
+	backoff := retry.DefaultRetry
 	for {
 		currWf, err := wfClient.Get(ctx, woc.wf.ObjectMeta.Name, metav1.GetOptions{})
 		if err != nil {
@@ -712,6 +713,9 @@ func (woc *wfOperationCtx) reapplyUpdate(ctx context.Context, wfClient v1alpha1.
 		woc.log.Warnf("Update retry attempt %d failed: %v", attempt, err)
 		if attempt > 5 {
 			return nil, err
+		}
+		if apierr.IsTimeout(err) {
+			time.Sleep(backoff.Step())
 		}
 	}
 }
