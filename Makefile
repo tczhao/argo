@@ -598,7 +598,7 @@ docs/cli/argo.md: $(CLI_PKGS) go.sum server/static/files.go hack/cli/main.go
 githooks: .git/hooks/commit-msg
 
 .PHONY: pre-commit
-pre-commit: githooks codegen lint
+pre-commit: codegen lint
 
 release-notes: /dev/null
 	version=$(VERSION) envsubst < hack/release-notes.md > release-notes

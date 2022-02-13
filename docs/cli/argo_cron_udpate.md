@@ -1,19 +1,23 @@
-## argo cron
+## argo cron udpate
 
-manage cron workflows
-
-### Synopsis
-
-NextScheduledRun assumes that the workflow-controller uses UTC as its timezone
+update a cron workflow
 
 ```
-argo cron [flags]
+argo cron udpate FILE1 FILE2... [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for cron
+      --entrypoint string       override entrypoint
+      --generate-name string    override metadata.generateName
+  -h, --help                    help for udpate
+  -l, --labels string           Comma separated labels to apply to the workflow. Will override previous values.
+      --name string             override metadata.name
+  -p, --parameter stringArray   pass an input parameter
+  -f, --parameter-file string   pass a file containing all input parameters
+      --serviceaccount string   run all pods in the workflow using specified serviceaccount
+      --strict                  perform strict workflow validation (default true)
 ```
 
 ### Options inherited from parent commands
@@ -49,13 +53,5 @@ argo cron [flags]
 
 ### SEE ALSO
 
-* [argo](argo.md)	 - argo is the command line interface to Argo
-* [argo cron create](argo_cron_create.md)	 - create a cron workflow
-* [argo cron delete](argo_cron_delete.md)	 - delete a cron workflow
-* [argo cron get](argo_cron_get.md)	 - display details about a cron workflow
-* [argo cron lint](argo_cron_lint.md)	 - validate files or directories of cron workflow manifests
-* [argo cron list](argo_cron_list.md)	 - list cron workflows
-* [argo cron resume](argo_cron_resume.md)	 - resume zero or more cron workflows
-* [argo cron suspend](argo_cron_suspend.md)	 - suspend zero or more cron workflows
-* [argo cron udpate](argo_cron_udpate.md)	 - update a cron workflow
+* [argo cron](argo_cron.md)	 - manage cron workflows
 
