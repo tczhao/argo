@@ -1,32 +1,31 @@
-## argo lint
+## argo cluster-template update
 
-validate files or directories of manifests
+update a cluster workflow template
 
 ```
-argo lint FILE... [flags]
+argo cluster-template update FILE1 FILE2... [flags]
 ```
 
 ### Examples
 
 ```
+# Update a Cluster Workflow Template:
+  argo cluster-template update FILE1
+	
+# Update a Cluster Workflow Template and print it as YAML:
+  argo cluster-template update FILE1 --output yaml
+  
+# Update a Cluster Workflow Template with relaxed validation:
+  argo cluster-template update FILE1 --strict false
 
-# Lint all manifests in a specified directory:
-
-  argo lint ./manifests
-
-# Lint only manifests of Workflows and CronWorkflows from stdin:
-
-  cat manifests.yaml | argo lint --kinds=workflows,cronworkflows -
 ```
 
 ### Options
 
 ```
-  -h, --help            help for lint
-      --kinds strings   Which kinds will be linted. Can be: workflows|workflowtemplates|cronworkflows|clusterworkflowtemplates (default [all])
-      --offline         perform offline linting. For resources referencing other resources, the references will be resolved from the provided args
-  -o, --output string   Linting results output format. One of: pretty|simple (default "pretty")
-      --strict          Perform strict workflow validation (default true)
+  -h, --help            help for update
+  -o, --output string   Output format. One of: name|json|yaml|wide
+      --strict          perform strict workflow validation (default true)
 ```
 
 ### Options inherited from parent commands
@@ -66,5 +65,5 @@ argo lint FILE... [flags]
 
 ### SEE ALSO
 
-* [argo](argo.md)	 - argo is the command line interface to Argo
+* [argo cluster-template](argo_cluster-template.md)	 - manipulate cluster workflow templates
 
