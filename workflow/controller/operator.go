@@ -2075,18 +2075,19 @@ func (woc *wfOperationCtx) executeTemplate(ctx context.Context, nodeName string,
 			localScope, realTimeScope := woc.prepareMetricScope(lastChildNode)
 			woc.computeMetrics(processedTmpl.Metrics.Prometheus, localScope, realTimeScope, false)
 		}
+		localScope := buildRetryStrategyLocalScope(retryParentNode, woc.wf.Status.Nodes)
+		for key, value := range localScope {
+			strKey := fmt.Sprintf("%v", key)
+			strValue := fmt.Sprintf("%v", value)
+			localParams[strKey] = strValue
+		}
+		retryNum := len(childNodeIDs)
+		localParams[common.LocalVarRetries] = strconv.Itoa(retryNum)
 		if lastChildNode != nil && !lastChildNode.Fulfilled() {
 			// Last child node is still running.
 			nodeName = lastChildNode.Name
 			node = lastChildNode
 		} else {
-			localScope := buildRetryStrategyLocalScope(retryParentNode, woc.wf.Status.Nodes)
-			for key, value := range localScope {
-				strKey := fmt.Sprintf("%v", key)
-				strValue := fmt.Sprintf("%v", value)
-				localParams[strKey] = strValue
-			}
-			retryNum := len(childNodeIDs)
 			// Create a new child node and append it to the retry node.
 			nodeName = fmt.Sprintf("%s(%d)", retryNodeName, retryNum)
 			woc.addChildNode(retryNodeName, nodeName)
@@ -2096,8 +2097,6 @@ func (woc *wfOperationCtx) executeTemplate(ctx context.Context, nodeName string,
 			if processedTmpl.IsPodType() {
 				localParams[common.LocalVarPodName] = woc.getPodName(nodeName, processedTmpl.Name)
 			}
-			// Inject the retryAttempt number
-			localParams[common.LocalVarRetries] = strconv.Itoa(retryNum)
 
 			processedTmpl, err = common.SubstituteParams(processedTmpl, map[string]string{}, localParams)
 			if errorsutil.IsTransientErr(err) {
