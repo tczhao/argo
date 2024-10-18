@@ -12,19 +12,19 @@ kind: Workflow
 metadata:
   generateName: hello-world-parameters-
 spec:
-  entrypoint: whalesay
+  entrypoint: print-message
   arguments:
     parameters:
       - name: message
         value: hello world
   templates:
-    - name: whalesay
+    - name: print-message
       inputs:
         parameters:
           - name: message
       container:
-        image: docker/whalesay
-        command: [ cowsay ]
+        image: busybox
+        command: [ echo ]
         args: [ "{{inputs.parameters.message}}" ]
 ```
 
@@ -49,14 +49,14 @@ args: [ "{{ inputs.parameters.message }}" ]
 
 ### Expression
 
-> Since v3.1
+> v3.1 and after
 
 The tag is substituted with the result of evaluating the tag as an expression.
 
 Note that any hyphenated parameter names or step names will cause a parsing error. You can reference them by
 indexing into the parameter or step map, e.g. `inputs.parameters['my-param']` or `steps['my-step'].outputs.result`.
 
-[Learn about the expression syntax](https://github.com/antonmedv/expr/blob/master/docs/language-definition.md).
+[Learn more about the expression syntax](https://expr-lang.org/docs/language-definition).
 
 #### Examples
 
@@ -170,7 +170,7 @@ sprig.trim(inputs.parameters['my-string-param'])
 
 ### HTTP Templates
 
-> Since v3.3
+> v3.3 and after
 
 Only available for `successCondition`
 
@@ -183,6 +183,22 @@ Only available for `successCondition`
 | `response.statusCode` | Response status code (`int`) |
 | `response.body` | Response body (`string`) |
 | `response.headers` | Response headers (`map[string][]string`) |
+
+### CronWorkflows
+
+> v3.6 and after
+
+| Variable | Description|
+|----------|------------|
+| `cronworkflow.name` | Name of the CronWorkflow (`string`) |
+| `cronworkflow.namespace` | Namespace of the CronWorkflow (`string`) |
+| `cronworkflow.labels.<NAME>` | CronWorkflow labels (`string`) |
+| `cronworkflow.labels.json` | CronWorkflow labels as a JSON string (`string`) |
+| `cronworkflow.annotations.<NAME>` | CronWorkflow annotations (`string`) |
+| `cronworkflow.annotations.json` | CronWorkflow annotations as a JSON string (`string`) |
+| `cronworkflow.lastScheduledTime` | The time since this workflow was last scheduled, value is nil on first run (`*time.Time`) |
+| `cronworkflow.failed` | Counts how many times child workflows failed |
+| `cronworkflow.succeeded` | Counts how many times child workflows succeeded |
 
 ### `RetryStrategy`
 

@@ -34,8 +34,6 @@ const (
 	AnnotationKeyRBACRule           = workflow.WorkflowFullName + "/rbac-rule"
 	AnnotationKeyRBACRulePrecedence = workflow.WorkflowFullName + "/rbac-rule-precedence"
 
-	// AnnotationKeyOutputs is the pod metadata annotation key containing the container outputs
-	AnnotationKeyOutputs = workflow.WorkflowFullName + "/outputs"
 	// AnnotationKeyCronWfScheduledTime is the workflow metadata annotation key containing the time when the workflow
 	// was scheduled to run by CronWorkflow.
 	AnnotationKeyCronWfScheduledTime = workflow.WorkflowFullName + "/scheduled-time"
@@ -50,10 +48,6 @@ const (
 
 	// AnnotationKeyProgress is N/M progress for the node
 	AnnotationKeyProgress = workflow.WorkflowFullName + "/progress"
-
-	// AnnotationKeyReportOutputsCompleted is an annotation on a workflow pod indicating outputs have completed.
-	// Only used as a backup in case LabelKeyReportOutputsCompleted can't be added to WorkflowTaskResult.
-	AnnotationKeyReportOutputsCompleted = workflow.WorkflowFullName + "/report-outputs-completed"
 
 	// AnnotationKeyArtifactGCStrategy is listed as an annotation on the Artifact GC Pod to identify
 	// the strategy whose artifacts are being deleted
@@ -170,6 +164,9 @@ const (
 
 	// Finalizer to block deletion of the workflow if deletion of artifacts fail for some reason.
 	FinalizerArtifactGC = workflow.WorkflowFullName + "/artifact-gc"
+
+	// Finalizer blocks the deletion of pods until the controller captures their status.
+	FinalizerPodStatus = workflow.WorkflowFullName + "/status"
 
 	// Variables that are added to the scope during template execution and can be referenced using {{}} syntax
 

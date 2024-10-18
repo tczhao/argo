@@ -6,9 +6,10 @@ import {ResubmitOpts, RetryOpts} from '../../../models';
 import {SubmitOpts} from '../../../models/submit-opts';
 import {uiUrl} from '../base';
 import {Pagination} from '../pagination';
-import {Utils} from '../utils';
+import {queryParams} from './utils';
 import requests from './requests';
 import {WorkflowDeleteResponse} from './responses';
+import {NameFilterKeys} from '../../workflows/components/workflow-filters/workflow-filters';
 
 function isString(value: any): value is string {
     return typeof value === 'string';
@@ -20,12 +21,7 @@ function isNodePendingOrRunning(node: NodeStatus) {
 
 function hasArtifactLogs(workflow: Workflow, nodeId: string, container: string) {
     const node = workflow.status.nodes[nodeId];
-
-    if (!node || !node.outputs || !node.outputs.artifacts) {
-        return false;
-    }
-
-    return node.outputs.artifacts.findIndex(a => a.name === `${container}-logs`) !== -1;
+    return node?.outputs?.artifacts?.some(a => a.name === `${container}-logs`);
 }
 
 export const WorkflowsService = {
@@ -56,9 +52,11 @@ export const WorkflowsService = {
             'items.status.estimatedDuration',
             'items.status.progress',
             'items.spec.suspend'
-        ]
+        ],
+        name?: string,
+        nameFilter?: NameFilterKeys
     ) {
-        const params = Utils.queryParams({phases, labels, pagination});
+        const params = queryParams({phases, labels, pagination, name, nameFilter});
         params.push(`fields=${fields.join(',')}`);
         return requests.get(`api/v1/workflows/${namespace}?${params.join('&')}`).then(res => res.body as WorkflowList);
     },
@@ -78,7 +76,7 @@ export const WorkflowsService = {
         labels?: Array<string>;
         resourceVersion?: string;
     }): Observable<models.kubernetes.WatchEvent<Workflow>> {
-        const url = `api/v1/workflow-events/${query.namespace || ''}?${Utils.queryParams(query).join('&')}`;
+        const url = `api/v1/workflow-events/${query.namespace || ''}?${queryParams(query).join('&')}`;
         return requests.loadEventSource(url).pipe(map(data => data && (JSON.parse(data).result as models.kubernetes.WatchEvent<Workflow>)));
     },
 
@@ -95,7 +93,7 @@ export const WorkflowsService = {
         labels?: Array<string>;
         resourceVersion?: string;
     }): Observable<models.kubernetes.WatchEvent<Workflow>> {
-        const params = Utils.queryParams(query);
+        const params = queryParams(query);
         const fields = [
             'result.object.metadata.name',
             'result.object.metadata.namespace',

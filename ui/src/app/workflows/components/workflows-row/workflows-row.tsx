@@ -1,16 +1,20 @@
-import {Ticker} from 'argo-ui/src/index';
+import {Ticker} from 'argo-ui/src/components/ticker';
 import * as React from 'react';
 import {useState} from 'react';
 import {Link} from 'react-router-dom';
+
 import * as models from '../../../../models';
 import {isArchivedWorkflow, Workflow} from '../../../../models';
+import {ANNOTATION_DESCRIPTION, ANNOTATION_TITLE} from '../../../shared/annotations';
 import {uiUrl} from '../../../shared/base';
+import {Loading} from '../../../shared/components/loading';
 import {DurationPanel} from '../../../shared/components/duration-panel';
 import {PhaseIcon} from '../../../shared/components/phase-icon';
 import {Timestamp} from '../../../shared/components/timestamp';
 import {wfDuration} from '../../../shared/duration';
 import {WorkflowDrawer} from '../workflow-drawer/workflow-drawer';
-import {WorkflowsRowName} from './workflows-row-name';
+
+require('./workflows-row.scss');
 
 interface WorkflowsRowProps {
     workflow: Workflow;
@@ -18,12 +22,18 @@ interface WorkflowsRowProps {
     select: (wf: Workflow) => void;
     checked: boolean;
     columns: models.Column[];
+    displayISOFormatStart: boolean;
+    displayISOFormatFinished: boolean;
 }
 
 export function WorkflowsRow(props: WorkflowsRowProps) {
     const [hideDrawer, setHideDrawer] = useState(true);
     const wf = props.workflow;
-    const workflowLink = uiUrl(`workflows/${wf.metadata.namespace}/${wf.metadata.name}?uid=${wf.metadata.uid}`);
+    // title + description vars
+    const title = wf.metadata.annotations?.[ANNOTATION_TITLE] ?? wf.metadata.name;
+    const description = (wf.metadata.annotations?.[ANNOTATION_DESCRIPTION] && `\n${wf.metadata.annotations[ANNOTATION_DESCRIPTION]}`) || '';
+    const hasAnnotation = title !== wf.metadata.name && description !== '';
+    const markdown = `${title}${description}`;
 
     return (
         <div className='workflows-list__row-container'>
@@ -42,22 +52,21 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
                     />
                     <PhaseIcon value={wf.status.phase} />
                 </div>
-                <div className='columns small-2'>
-                    <a className='overlay' href={workflowLink}></a>
-                    <WorkflowsRowName metadata={wf.metadata} />
-                </div>
-                <Link
-                    to={{
-                        pathname: uiUrl(`workflows/${wf.metadata.namespace}/${wf.metadata.name}`),
-                        search: `?uid=${wf.metadata.uid}`
-                    }}
-                    className='small-8 row'>
+                <div className='small-11 row'>
+                    <Link
+                        to={{
+                            pathname: uiUrl(`workflows/${wf.metadata.namespace}/${wf.metadata.name}`),
+                            search: `?uid=${wf.metadata.uid}`
+                        }}
+                        className='columns small-2'>
+                        <div className='wf-rows-name'>{hasAnnotation ? <SuspenseReactMarkdownGfm markdown={markdown} /> : markdown}</div>
+                    </Link>
                     <div className='columns small-1'>{wf.metadata.namespace}</div>
-                    <div className='columns small-1'>
-                        <Timestamp date={wf.status.startedAt} />
+                    <div className='columns small-1 workflows-list__timestamp'>
+                        <Timestamp date={wf.status.startedAt} displayISOFormat={props.displayISOFormatStart} />
                     </div>
-                    <div className='columns small-1'>
-                        <Timestamp date={wf.status.finishedAt} />
+                    <div className='columns small-1 workflows-list__timestamp'>
+                        <Timestamp date={wf.status.finishedAt} displayISOFormat={props.displayISOFormatFinished} />
                     </div>
                     <div className='columns small-1'>
                         <Ticker>{() => <DurationPanel phase={wf.status.phase} duration={wfDuration(wf.status)} estimatedDuration={wf.status.estimatedDuration} />}</Ticker>
@@ -96,8 +105,21 @@ export function WorkflowsRow(props: WorkflowsRowProps) {
                         );
                     })}
                     {hideDrawer ? <span /> : <WorkflowDrawer name={wf.metadata.name} namespace={wf.metadata.namespace} onChange={props.onChange} />}
-                </Link>
+                </div>
             </div>
         </div>
+    );
+}
+
+// lazy load ReactMarkdown (and remark-gfm) as it is a large optional component (which can be split into a separate bundle)
+const LazyReactMarkdownGfm = React.lazy(() => {
+    return import(/* webpackChunkName: "react-markdown-plus-gfm" */ './react-markdown-gfm');
+});
+
+function SuspenseReactMarkdownGfm(props: {markdown: string}) {
+    return (
+        <React.Suspense fallback={<Loading />}>
+            <LazyReactMarkdownGfm markdown={props.markdown} />
+        </React.Suspense>
     );
 }
