@@ -361,8 +361,8 @@ func newControllerWithComplexDefaults() (context.CancelFunc, *WorkflowController
 	return cancel, controller
 }
 
-func newControllerWithDefaultsVolumeClaimTemplate() (context.CancelFunc, *WorkflowController) {
-	cancel, controller := newController(func(controller *WorkflowController) {
+func newControllerWithDefaultsVolumeClaimTemplate(ctx context.Context) (context.CancelFunc, *WorkflowController) {
+	cancel, controller := newController(ctx, func(controller *WorkflowController) {
 		controller.Config.WorkflowDefaults = &wfv1.Workflow{
 			Spec: wfv1.WorkflowSpec{
 				VolumeClaimTemplates: []apiv1.PersistentVolumeClaim{{
@@ -371,7 +371,7 @@ func newControllerWithDefaultsVolumeClaimTemplate() (context.CancelFunc, *Workfl
 					},
 					Spec: apiv1.PersistentVolumeClaimSpec{
 						AccessModes: []apiv1.PersistentVolumeAccessMode{apiv1.ReadWriteOnce},
-						Resources: apiv1.ResourceRequirements{
+						Resources: apiv1.VolumeResourceRequirements{
 							Requests: apiv1.ResourceList{
 								apiv1.ResourceStorage: resource.MustParse("1Mi"),
 							},
@@ -592,7 +592,7 @@ func TestAddingWorkflowDefaultComplexTwo(t *testing.T) {
 }
 
 func TestAddingWorkflowDefaultVolumeClaimTemplate(t *testing.T) {
-	cancel, controller := newControllerWithDefaultsVolumeClaimTemplate()
+	cancel, controller := newControllerWithDefaultsVolumeClaimTemplate(context.Background())
 	defer cancel()
 	workflow := wfv1.MustUnmarshalWorkflow(testDefaultWf)
 	err := controller.setWorkflowDefaults(workflow)

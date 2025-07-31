@@ -20,7 +20,7 @@ import (
 // RunServer starts a metrics server
 // If 'isDummy' is set to true, the dummy metrics server will be started. If it's false, the prometheus metrics server will be started
 func (m *Metrics) RunServer(ctx context.Context, isDummy bool) {
-	defer runtimeutil.HandleCrash(runtimeutil.PanicHandlers...)
+	defer runtimeutil.HandleCrashWithContext(ctx, runtimeutil.PanicHandlers...)
 
 	if !m.metricsConfig.Enabled {
 		// If metrics aren't enabled, return

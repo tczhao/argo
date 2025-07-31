@@ -1366,30 +1366,6 @@ spec:
       args: ["hello world"]
 `
 
-var helloWorldWfWithTmplAndWFPatch = `
-apiVersion: argoproj.io/v1alpha1
-kind: Workflow
-metadata:
-  name: hello-world
-spec:
-  entrypoint: whalesay
-  podSpecPatch: |
-    containers:
-      - name: main
-        securityContext:
-          runAsNonRoot: true
-          capabilities:
-            drop:
-              - ALL
-  templates:
-  - name: whalesay
-    podSpecPatch: '{"containers":[{"name":"main", "securityContext":{"capabilities":{"add":["ALL"],"drop":null}}}]}'
-    container:
-      image: docker/whalesay:latest
-      command: [cowsay]
-      args: ["hello world"]
-`
-
 var helloWorldWfWithInvalidPatchFormat = `
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
@@ -1589,7 +1565,8 @@ func TestExecutorContainerCustomization(t *testing.T) {
 		},
 	}
 
-	pod, err := woc.createWorkflowPod(context.Background(), "", nil, &wfv1.Template{}, &createWorkflowPodOpts{})
+	lp := make(map[string]string)
+	pod, err := woc.createWorkflowPod(context.Background(), "", nil, &wfv1.Template{}, &createWorkflowPodOpts{}, lp)
 	assert.NoError(t, err)
 	waitCtr := pod.Spec.Containers[0]
 	assert.Equal(t, []string{"foo"}, waitCtr.Args)
@@ -2054,7 +2031,8 @@ func TestMergeEnvVars(t *testing.T) {
 		woc.controller.Config.MainContainer = mainCtrSpec
 		mainCtr := woc.execWf.Spec.Templates[0].Container
 
-		pod, err := woc.createWorkflowPod(ctx, wf.Name, []apiv1.Container{*mainCtr}, &wf.Spec.Templates[0], &createWorkflowPodOpts{})
+		lp := make(map[string]string)
+		pod, err := woc.createWorkflowPod(ctx, wf.Name, []apiv1.Container{*mainCtr}, &wf.Spec.Templates[0], &createWorkflowPodOpts{}, lp)
 		require.NoError(t, err)
 		assert.NotNil(t, pod)
 		return cancel, pod

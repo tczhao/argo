@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -479,11 +480,10 @@ func TestUpdateSuspendedNode(t *testing.T) {
 	err = updateSuspendedNode(ctx, wfIf, hydratorfake.Noop, "suspend-template", "name=suspend-template-kgfn7[0].approve", SetOperationValues{OutputParameters: map[string]string{"message2": "Hello World 2"}}, creator.ActionNone)
 	require.NoError(t, err)
 
-		// make sure global variable was updated
-		wf, err := wfIf.Get(ctx, "suspend-template", metav1.GetOptions{})
-		assert.NoError(t, err)
-		assert.Equal(t, "Hello World 2", wf.Status.Outputs.Parameters[0].Value.String())
-	}
+	// make sure global variable was updated
+	wf, err := wfIf.Get(ctx, "suspend-template", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "Hello World 2", wf.Status.Outputs.Parameters[0].Value.String())
 
 	noSpaceWf := wfv1.MustUnmarshalWorkflow(susWorkflow)
 	noSpaceWf.Name = "suspend-template-no-outputs"

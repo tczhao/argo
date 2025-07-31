@@ -138,7 +138,7 @@ func (c *Controller) runWorker() {
 
 // retentionGC queues workflows for deletion based upon the retention policy.
 func (c *Controller) runGC(phase wfv1.WorkflowPhase) {
-	defer runtimeutil.HandleCrash(runtimeutil.PanicHandlers...)
+	defer runtimeutil.HandleCrashWithContext(context.Background(), runtimeutil.PanicHandlers...)
 	var maxWorkflows int
 	switch phase {
 	case wfv1.WorkflowSucceeded:

@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -47,7 +48,7 @@ func (cm *Manager) getWorkflowKey(key string) (string, error) {
 }
 
 func (cm *Manager) CheckWorkflowExistence() {
-	defer runtimeutil.HandleCrash(runtimeutil.PanicHandlers...)
+	defer runtimeutil.HandleCrashWithContext(context.Background(), runtimeutil.PanicHandlers...)
 
 	log.Debug("Check the workflow existence")
 	for _, lock := range cm.syncLockMap {

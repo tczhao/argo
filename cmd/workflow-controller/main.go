@@ -69,7 +69,10 @@ func NewRootCommand() *cobra.Command {
 		Use:   CLIName,
 		Short: "workflow-controller is the controller to operate on workflows",
 		RunE: func(c *cobra.Command, args []string) error {
-			defer runtimeutil.HandleCrash(runtimeutil.PanicHandlers...)
+			// start a controller on instances of our custom resource
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			defer runtimeutil.HandleCrashWithContext(ctx, runtimeutil.PanicHandlers...)
 
 			cli.SetLogLevel(logLevel)
 			cmdutil.SetGLogLevel(glogLevel)
@@ -105,10 +108,6 @@ func NewRootCommand() *cobra.Command {
 			if namespaced && managedNamespace == "" {
 				managedNamespace = namespace
 			}
-
-			// start a controller on instances of our custom resource
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 
 			wfController, err := controller.NewWorkflowController(ctx, config, kubeclientset, wfclientset, namespace, managedNamespace, executorImage, executorImagePullPolicy, logFormat, configMap, executorPlugins)
 			errors.CheckError(err)
