@@ -112,7 +112,7 @@ func AddHostnamesToAffinity(hostSelector string, hostNames []string, targetAffin
 		}
 	}
 
-	targetAffinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution = 
+	targetAffinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution =
 		append(targetAffinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution, sourceAffinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution[0])
 
 	return targetAffinity

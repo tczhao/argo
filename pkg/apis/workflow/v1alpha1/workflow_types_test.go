@@ -32,7 +32,7 @@ func TestWorkflows(t *testing.T) {
 	})
 	t.Run("Filter", func(t *testing.T) {
 		assert.Len(t, wfs.Filter(func(wf Workflow) bool { return true }), 4)
-		assert.Len(t, wfs.Filter(func(wf Workflow) bool { return false }), 0)
+		assert.Empty(t, wfs.Filter(func(wf Workflow) bool { return false }))
 	})
 }
 
@@ -203,7 +203,7 @@ func TestArtifact_ValidatePath(t *testing.T) {
 		a1 := Artifact{Name: "a1", Path: ""}
 		err := a1.CleanPath()
 		assert.EqualError(t, err, "Artifact 'a1' did not specify a path")
-		assert.Equal(t, "", a1.Path)
+		assert.Empty(t, a1.Path)
 	})
 
 	t.Run("directory traversal above safe base dir fails", func(t *testing.T) {
@@ -608,7 +608,7 @@ func TestArtifactRepositoryRef_GetConfigMapOr(t *testing.T) {
 
 func TestArtifactRepositoryRef_GetKeyOr(t *testing.T) {
 	var r *ArtifactRepositoryRef
-	assert.Equal(t, "", r.GetKeyOr(""))
+	assert.Empty(t, r.GetKeyOr(""))
 	assert.Equal(t, "my-key", (&ArtifactRepositoryRef{}).GetKeyOr("my-key"))
 	assert.Equal(t, "my-key", (&ArtifactRepositoryRef{Key: "my-key"}).GetKeyOr(""))
 }
@@ -724,9 +724,9 @@ func TestNodes_Children(t *testing.T) {
 	}
 	t.Run("Found", func(t *testing.T) {
 		ret := nodes.Children("node_0")
-		assert.Equal(t, len(ret), 2)
-		assert.Equal(t, ret["node_1"].Name, "node_1")
-		assert.Equal(t, ret["node_2"].Name, "node_2")
+		assert.Len(t, ret, 2)
+		assert.Equal(t, "node_1", ret["node_1"].Name)
+		assert.Equal(t, "node_2", ret["node_2"].Name)
 	})
 	t.Run("NotFound", func(t *testing.T) {
 		assert.Empty(t, nodes.Children("node_1"))
@@ -755,7 +755,7 @@ func TestNestedChildren(t *testing.T) {
 			assert.False(t, ok, "got %s", child.Name)
 			found[child.Name] = true
 		}
-		assert.Equal(t, len(nodes), len(found))
+		assert.Len(t, found, len(nodes))
 	})
 }
 
@@ -773,9 +773,9 @@ func TestNodes_Filter(t *testing.T) {
 	})
 	t.Run("Found", func(t *testing.T) {
 		n := nodes.Filter(func(x NodeStatus) bool { return x.Phase == NodeFailed })
-		assert.Equal(t, len(n), 2)
-		assert.Equal(t, n["node_1"].ID, "node_1")
-		assert.Equal(t, n["node_3"].ID, "node_3")
+		assert.Len(t, n, 2)
+		assert.Equal(t, "node_1", n["node_1"].ID)
+		assert.Equal(t, "node_3", n["node_3"].ID)
 	})
 }
 
@@ -790,8 +790,8 @@ func TestNodes_Map(t *testing.T) {
 	})
 	t.Run("Exist", func(t *testing.T) {
 		n := nodes.Map(func(x NodeStatus) interface{} { return x.HostNodeName })
-		assert.Equal(t, n["node_1"], "host_1")
-		assert.Equal(t, n["node_2"], "host_2")
+		assert.Equal(t, "host_1", n["node_1"])
+		assert.Equal(t, "host_2", n["node_2"])
 	})
 }
 
@@ -863,11 +863,11 @@ func TestCronWorkflowConditions(t *testing.T) {
 		Status:  metav1.ConditionTrue,
 	}
 
-	assert.Len(t, cwfCond, 0)
+	assert.Empty(t, cwfCond)
 	cwfCond.UpsertCondition(cond)
 	assert.Len(t, cwfCond, 1)
 	cwfCond.RemoveCondition(ConditionTypeSubmissionError)
-	assert.Len(t, cwfCond, 0)
+	assert.Empty(t, cwfCond)
 }
 
 func TestDisplayConditions(t *testing.T) {
@@ -970,7 +970,7 @@ func TestWorkflow_SearchArtifacts(t *testing.T) {
 	countArtifactName := func(ars ArtifactSearchResults, name string) int {
 		count := 0
 		for _, ar := range ars {
-			if ar.Artifact.Name == name {
+			if ar.Name == name {
 				count++
 			}
 		}
@@ -1025,7 +1025,7 @@ func TestWorkflow_SearchArtifacts(t *testing.T) {
 	queriedArtifactSearchResults = wf.SearchArtifacts(query)
 	assert.NotNil(t, queriedArtifactSearchResults)
 	assert.Len(t, queriedArtifactSearchResults, 1)
-	assert.Equal(t, "artifact-foobar", queriedArtifactSearchResults[0].Artifact.Name)
+	assert.Equal(t, "artifact-foobar", queriedArtifactSearchResults[0].Name)
 	assert.Equal(t, "node-bar", queriedArtifactSearchResults[0].NodeID)
 
 	// artifact name
@@ -1034,7 +1034,7 @@ func TestWorkflow_SearchArtifacts(t *testing.T) {
 	queriedArtifactSearchResults = wf.SearchArtifacts(query)
 	assert.NotNil(t, queriedArtifactSearchResults)
 	assert.Len(t, queriedArtifactSearchResults, 1)
-	assert.Equal(t, "artifact-foo", queriedArtifactSearchResults[0].Artifact.Name)
+	assert.Equal(t, "artifact-foo", queriedArtifactSearchResults[0].Name)
 	assert.Equal(t, "node-foo", queriedArtifactSearchResults[0].NodeID)
 
 	// node id
@@ -1052,7 +1052,7 @@ func TestWorkflow_SearchArtifacts(t *testing.T) {
 	query.NodeId = "node-foobar"
 	queriedArtifactSearchResults = wf.SearchArtifacts(query)
 	assert.Nil(t, queriedArtifactSearchResults)
-	assert.Len(t, queriedArtifactSearchResults, 0)
+	assert.Empty(t, queriedArtifactSearchResults)
 
 	// template and artifact name
 	query = NewArtifactSearchQuery()
@@ -1061,7 +1061,7 @@ func TestWorkflow_SearchArtifacts(t *testing.T) {
 	queriedArtifactSearchResults = wf.SearchArtifacts(query)
 	assert.NotNil(t, queriedArtifactSearchResults)
 	assert.Len(t, queriedArtifactSearchResults, 1)
-	assert.Equal(t, "artifact-foo", queriedArtifactSearchResults[0].Artifact.Name)
+	assert.Equal(t, "artifact-foo", queriedArtifactSearchResults[0].Name)
 	assert.Equal(t, "node-foo", queriedArtifactSearchResults[0].NodeID)
 }
 
@@ -1309,7 +1309,7 @@ func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
 		assert.Nil(t, dagTmpl.Script)
 		assert.Nil(t, dagTmpl.Resource)
 		assert.Nil(t, dagTmpl.Data)
-		assert.Len(t, dagTmpl.Steps, 0)
+		assert.Empty(t, dagTmpl.Steps)
 		assert.Nil(t, dagTmpl.Container)
 		assert.Nil(t, dagTmpl.Suspend)
 	})
@@ -1321,7 +1321,7 @@ func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
 		assert.Nil(t, scriptTmpl.DAG)
 		assert.Nil(t, scriptTmpl.Resource)
 		assert.Nil(t, scriptTmpl.Data)
-		assert.Len(t, scriptTmpl.Steps, 0)
+		assert.Empty(t, scriptTmpl.Steps)
 		assert.Nil(t, scriptTmpl.Container)
 		assert.Nil(t, scriptTmpl.Suspend)
 	})
@@ -1333,7 +1333,7 @@ func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
 		assert.Nil(t, resourceTmpl.Script)
 		assert.Nil(t, resourceTmpl.DAG)
 		assert.Nil(t, resourceTmpl.Data)
-		assert.Len(t, resourceTmpl.Steps, 0)
+		assert.Empty(t, resourceTmpl.Steps)
 		assert.Nil(t, resourceTmpl.Container)
 		assert.Nil(t, resourceTmpl.Suspend)
 	})
@@ -1344,7 +1344,7 @@ func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
 		assert.Nil(t, containerTmpl.Script)
 		assert.Nil(t, containerTmpl.DAG)
 		assert.Nil(t, containerTmpl.Data)
-		assert.Len(t, containerTmpl.Steps, 0)
+		assert.Empty(t, containerTmpl.Steps)
 		assert.Nil(t, containerTmpl.Resource)
 		assert.Nil(t, containerTmpl.Suspend)
 	})
@@ -1355,7 +1355,7 @@ func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
 		assert.Nil(t, dataTmpl.Script)
 		assert.Nil(t, dataTmpl.DAG)
 		assert.Nil(t, dataTmpl.Container)
-		assert.Len(t, dataTmpl.Steps, 0)
+		assert.Empty(t, dataTmpl.Steps)
 		assert.Nil(t, dataTmpl.Resource)
 		assert.Nil(t, dataTmpl.Suspend)
 	})
@@ -1366,7 +1366,7 @@ func TestTemplate_ExcludeTemplateTypes(t *testing.T) {
 		assert.Nil(t, suspendTmpl.Script)
 		assert.Nil(t, suspendTmpl.DAG)
 		assert.Nil(t, suspendTmpl.Container)
-		assert.Len(t, suspendTmpl.Steps, 0)
+		assert.Empty(t, suspendTmpl.Steps)
 		assert.Nil(t, suspendTmpl.Resource)
 		assert.Nil(t, suspendTmpl.Data)
 	})
@@ -1383,7 +1383,7 @@ func TestDAGTask_GetExitTemplate(t *testing.T) {
 	}
 	task := DAGTask{
 		Hooks: map[LifecycleEvent]LifecycleHook{
-			ExitLifecycleEvent: LifecycleHook{
+			ExitLifecycleEvent: {
 				Template:  "test",
 				Arguments: args,
 			},
@@ -1411,7 +1411,7 @@ func TestStep_GetExitTemplate(t *testing.T) {
 	}
 	task := WorkflowStep{
 		Hooks: map[LifecycleEvent]LifecycleHook{
-			ExitLifecycleEvent: LifecycleHook{
+			ExitLifecycleEvent: {
 				Template:  "test",
 				Arguments: args,
 			},
@@ -1523,7 +1523,7 @@ func TestStepSpecGetExitHook(t *testing.T) {
 func TestTemplate_RetryStrategy(t *testing.T) {
 	tmpl := Template{}
 	strategy, err := tmpl.GetRetryStrategy()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, wait.Backoff{Steps: 1}, strategy)
 }
 
@@ -1547,7 +1547,7 @@ func TestGetExecSpec(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, wf.GetExecSpec().Templates[0].Name, "stored-spec-template")
+	assert.Equal(t, "stored-spec-template", wf.GetExecSpec().Templates[0].Name)
 
 	wf = Workflow{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1561,11 +1561,11 @@ func TestGetExecSpec(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, wf.GetExecSpec().Templates[0].Name, "spec-template")
+	assert.Equal(t, "spec-template", wf.GetExecSpec().Templates[0].Name)
 
 	wf.Status.StoredWorkflowSpec = nil
 
-	assert.Equal(t, wf.GetExecSpec().Templates[0].Name, "spec-template")
+	assert.Equal(t, "spec-template", wf.GetExecSpec().Templates[0].Name)
 }
 
 // Check that inline tasks and steps are properly recovered from the store
@@ -1610,7 +1610,7 @@ func TestInlineStore(t *testing.T) {
 						{
 							Name: "step-template",
 							Steps: []ParallelSteps{
-								ParallelSteps{
+								{
 									[]WorkflowStep{
 										{
 											Name: "hello1",
@@ -1640,16 +1640,16 @@ func TestInlineStore(t *testing.T) {
 			steptmpl2 := &wf.Spec.Templates[1].Steps[0].Steps[1]
 			stored, err := wf.SetStoredTemplate(scope, "dag-template", dagtmpl1, dagtmpl1.Inline)
 			assert.Equal(t, shouldStore, stored, "DAG template 1 should be stored for non local scopes")
-			assert.Nil(t, err, "SetStoredTemplate for DAG1 should not return an error")
+			assert.NoError(t, err, "SetStoredTemplate for DAG1 should not return an error")
 			stored, err = wf.SetStoredTemplate(scope, "dag-template", dagtmpl2, dagtmpl2.Inline)
 			assert.Equal(t, shouldStore, stored, "DAG template 2 should be stored for non local scopes")
-			assert.Nil(t, err, "SetStoredTemplate for DAG2 should not return an error")
+			assert.NoError(t, err, "SetStoredTemplate for DAG2 should not return an error")
 			stored, err = wf.SetStoredTemplate(scope, "step-template", steptmpl1, steptmpl1.Inline)
 			assert.Equal(t, shouldStore, stored, "Step template 1 should be stored for non local scopes")
-			assert.Nil(t, err, "SetStoredTemplate for Step 1 should not return an error")
+			assert.NoError(t, err, "SetStoredTemplate for Step 1 should not return an error")
 			stored, err = wf.SetStoredTemplate(scope, "step-template", steptmpl2, steptmpl2.Inline)
 			assert.Equal(t, shouldStore, stored, "Step template 2 should be stored for non local scopes")
-			assert.Nil(t, err, "SetStoredTemplate for Step 2 should not return an error")
+			assert.NoError(t, err, "SetStoredTemplate for Step 2 should not return an error")
 			// For cases where we can store we should be able to retrieve and check
 			if shouldStore {
 				dagretrieved1 := wf.GetStoredTemplate(scope, "dag-template", dagtmpl1)

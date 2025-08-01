@@ -26,7 +26,7 @@ type RealTimeMetric struct {
 
 func ConstructOrUpdateMetric(metric prometheus.Metric, metricSpec *wfv1.Prometheus) (prometheus.Metric, error) {
 	if !IsValidMetricName(metricSpec.Name) {
-		return nil, fmt.Errorf(invalidMetricNameError)
+		return nil, errors.New(invalidMetricNameError)
 	}
 
 	switch metricSpec.GetMetricType() {
@@ -43,7 +43,7 @@ func ConstructOrUpdateMetric(metric prometheus.Metric, metricSpec *wfv1.Promethe
 
 func ConstructRealTimeGaugeMetric(metricSpec *wfv1.Prometheus, valueFunc func() float64) (prometheus.Metric, error) {
 	if !IsValidMetricName(metricSpec.Name) {
-		return nil, fmt.Errorf(invalidMetricNameError)
+		return nil, errors.New(invalidMetricNameError)
 	}
 	labels := metricSpec.GetMetricLabels()
 	if err := ValidateMetricLabels(labels); err != nil {

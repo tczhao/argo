@@ -734,7 +734,7 @@ func TestGetLatestWorkflow(t *testing.T) {
 	wfClient := ctx.Value(auth.WfKey).(versioned.Interface)
 	wf, err := getLatestWorkflow(ctx, wfClient, "test")
 	if assert.NoError(t, err) {
-		assert.Equal(t, wf.Name, "hello-world-9tql2-test")
+		assert.Equal(t, "hello-world-9tql2-test", wf.Name)
 	}
 }
 
@@ -767,12 +767,12 @@ func TestListWorkflow(t *testing.T) {
 	wfl, err := getWorkflowList(ctx, server, "workflows")
 	if assert.NoError(t, err) {
 		assert.NotNil(t, wfl)
-		assert.Equal(t, 4, len(wfl.Items))
+		assert.Len(t, wfl.Items, 4)
 	}
 	wfl, err = getWorkflowList(ctx, server, "test")
 	if assert.NoError(t, err) {
 		assert.NotNil(t, wfl)
-		assert.Equal(t, 2, len(wfl.Items))
+		assert.Len(t, wfl.Items, 2)
 	}
 }
 
@@ -837,21 +837,21 @@ func TestSuspendResumeWorkflowWithNotFound(t *testing.T) {
 	}
 	wf, err := server.SuspendWorkflow(ctx, &susWfReq)
 	assert.Nil(t, wf)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	rsmWfReq := workflowpkg.WorkflowResumeRequest{
 		Name:      "hello-world-9tql2-not",
 		Namespace: "workflows",
 	}
 	wf, err = server.ResumeWorkflow(ctx, &rsmWfReq)
 	assert.Nil(t, wf)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestTerminateWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 
 	wf, err := getWorkflow(ctx, server, "workflows", "hello-world-9tql2-run")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	rsmWfReq := workflowpkg.WorkflowTerminateRequest{
 		Name:      wf.Name,
 		Namespace: wf.Namespace,
@@ -859,7 +859,7 @@ func TestTerminateWorkflow(t *testing.T) {
 	wf, err = server.TerminateWorkflow(ctx, &rsmWfReq)
 	assert.NotNil(t, wf)
 	assert.Equal(t, v1alpha1.ShutdownStrategyTerminate, wf.Spec.Shutdown)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	rsmWfReq = workflowpkg.WorkflowTerminateRequest{
 		Name:      "hello-world-9tql2-not",
@@ -867,7 +867,7 @@ func TestTerminateWorkflow(t *testing.T) {
 	}
 	wf, err = server.TerminateWorkflow(ctx, &rsmWfReq)
 	assert.Nil(t, wf)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestStopWorkflow(t *testing.T) {

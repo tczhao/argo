@@ -197,7 +197,7 @@ func TestDefaultParameters(t *testing.T) {
 	ctx := context.Background()
 	err := we.SaveParameters(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, we.Template.Outputs.Parameters[0].Value.String(), "Default Value")
+	assert.Equal(t, "Default Value", we.Template.Outputs.Parameters[0].Value.String())
 }
 
 func TestDefaultParametersEmptyString(t *testing.T) {
@@ -228,7 +228,7 @@ func TestDefaultParametersEmptyString(t *testing.T) {
 	ctx := context.Background()
 	err := we.SaveParameters(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "", we.Template.Outputs.Parameters[0].Value.String())
+	assert.Empty(t, we.Template.Outputs.Parameters[0].Value.String())
 }
 
 func TestIsTarball(t *testing.T) {
@@ -474,10 +474,10 @@ func TestSaveArtifacts(t *testing.T) {
 		ctx := context.Background()
 		_, err := tt.workflowExecutor.SaveArtifacts(ctx)
 		if err != nil {
-			assert.Equal(t, tt.expectError, true)
+			assert.True(t, tt.expectError)
 			continue
 		}
-		assert.Equal(t, tt.expectError, false)
+		assert.False(t, tt.expectError)
 	}
 }
 
@@ -575,7 +575,7 @@ func TestReportOutputs(t *testing.T) {
 		ctx := context.Background()
 		err := we.ReportOutputs(ctx, artifacts)
 
-		assert.Equal(t, err, nil)
+		assert.NoError(t, err)
 		assert.Empty(t, we.errors)
 	})
 

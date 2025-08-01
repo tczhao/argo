@@ -383,13 +383,13 @@ func (wfc *WorkflowController) createSynchronizationManager(ctx context.Context)
 		if err != nil {
 			return 0, err
 		}
-        configmapsIf := wfc.kubeclientset.CoreV1().ConfigMaps(lockName.Namespace)
-        var configMap *apiv1.ConfigMap
-        err = waitutil.Backoff(retry.DefaultRetry, func() (bool, error) {
-                var err error
-                configMap, err = configmapsIf.Get(ctx, lockName.ResourceName, metav1.GetOptions{})
-                return !errorsutil.IsTransientErr(err), err
-        })
+		configmapsIf := wfc.kubeclientset.CoreV1().ConfigMaps(lockName.Namespace)
+		var configMap *apiv1.ConfigMap
+		err = waitutil.Backoff(retry.DefaultRetry, func() (bool, error) {
+			var err error
+			configMap, err = configmapsIf.Get(ctx, lockName.ResourceName, metav1.GetOptions{})
+			return !errorsutil.IsTransientErr(err), err
+		})
 		if err != nil {
 			return 0, err
 		}
@@ -619,9 +619,8 @@ func (wfc *WorkflowController) getPod(namespace string, podName string) (*apiv1.
 	return pod, nil
 }
 
-
 func (wfc *WorkflowController) signalContainers(ctx context.Context, namespace string, podName string, sig syscall.Signal) (time.Duration, error) {
-	pod, err := wfc.getPodFromCache(namespace, podName)
+	pod, err := wfc.getPod(namespace, podName)
 	if pod == nil || err != nil {
 		return 0, err
 	}
@@ -804,7 +803,7 @@ func (wfc *WorkflowController) processNextItem(ctx context.Context) bool {
 		return true
 	}
 
-	if wf.Status.Phase != "" && wfc.checkRecentlyCompleted(wf.ObjectMeta.Name) {
+	if wf.Status.Phase != "" && wfc.checkRecentlyCompleted(wf.Name) {
 		log.WithFields(log.Fields{"name": wf.ObjectMeta.Name}).Warn("Cache: Rejecting recently deleted")
 		return true
 	}
@@ -882,7 +881,7 @@ func (wfc *WorkflowController) enqueueWfFromPodLabel(obj interface{}) error {
 		// Ignore pods unrelated to workflow (this shouldn't happen unless the watch is setup incorrectly)
 		return fmt.Errorf("Watch returned pod unrelated to any workflow")
 	}
-	wfc.wfQueue.AddRateLimited(pod.ObjectMeta.Namespace + "/" + workflowName)
+	wfc.wfQueue.AddRateLimited(pod.Namespace + "/" + workflowName)
 	return nil
 }
 

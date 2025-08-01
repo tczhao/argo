@@ -215,8 +215,8 @@ func ValidateWorkflow(wftmplGetter templateresolution.WorkflowTemplateNamespaced
 		}
 	}
 
-	annotationSources := [][]string{maps.Keys(wf.ObjectMeta.Annotations)}
-	labelSources := [][]string{maps.Keys(wf.ObjectMeta.Labels)}
+	annotationSources := [][]string{maps.Keys(wf.Annotations)}
+	labelSources := [][]string{maps.Keys(wf.Labels)}
 	if wf.Spec.WorkflowMetadata != nil {
 		annotationSources = append(annotationSources, maps.Keys(wf.Spec.WorkflowMetadata.Annotations))
 		labelSources = append(labelSources, maps.Keys(wf.Spec.WorkflowMetadata.Labels), maps.Keys(wf.Spec.WorkflowMetadata.LabelsFrom))
@@ -347,8 +347,8 @@ func ValidateWorkflowTemplate(wftmplGetter templateresolution.WorkflowTemplateNa
 
 	wf := &wfv1.Workflow{
 		ObjectMeta: v1.ObjectMeta{
-			Labels:      wftmpl.ObjectMeta.Labels,
-			Annotations: wftmpl.ObjectMeta.Annotations,
+			Labels:      wftmpl.Labels,
+			Annotations: wftmpl.Annotations,
 		},
 		Spec: wftmpl.Spec,
 	}
@@ -365,8 +365,8 @@ func ValidateClusterWorkflowTemplate(wftmplGetter templateresolution.WorkflowTem
 
 	wf := &wfv1.Workflow{
 		ObjectMeta: v1.ObjectMeta{
-			Labels:      cwftmpl.ObjectMeta.Labels,
-			Annotations: cwftmpl.ObjectMeta.Annotations,
+			Labels:      cwftmpl.Labels,
+			Annotations: cwftmpl.Annotations,
 		},
 		Spec: cwftmpl.Spec,
 	}
@@ -410,7 +410,7 @@ func ValidateCronWorkflow(wftmplGetter templateresolution.WorkflowTemplateNamesp
 
 func (ctx *templateValidationCtx) validateInitContainers(containers []wfv1.UserContainer) error {
 	for _, container := range containers {
-		if len(container.Container.Name) == 0 {
+		if len(container.Name) == 0 {
 			return errors.Errorf(errors.CodeBadRequest, "initContainers must all have container name")
 		}
 	}
@@ -644,13 +644,13 @@ func validateInputs(tmpl *wfv1.Template) (map[string]interface{}, error) {
 				return nil, errors.Errorf(errors.CodeBadRequest, "error in templates.%s.%s: %s", tmpl.Name, artRef, err.Error())
 			}
 			scope[fmt.Sprintf("inputs.artifacts.%s.path", art.Name)] = true
-		// } else {
-		// 	if art.Path != "" {
-		// 		return nil, errors.Errorf(errors.CodeBadRequest, "templates.%s.%s.path only valid in container/script templates", tmpl.Name, artRef)
-		// 	}
-		// }
-		// if art.From != "" {
-		// 	return nil, errors.Errorf(errors.CodeBadRequest, "templates.%s.%s.from not valid in inputs", tmpl.Name, artRef)
+			// } else {
+			// 	if art.Path != "" {
+			// 		return nil, errors.Errorf(errors.CodeBadRequest, "templates.%s.%s.path only valid in container/script templates", tmpl.Name, artRef)
+			// 	}
+			// }
+			// if art.From != "" {
+			// 	return nil, errors.Errorf(errors.CodeBadRequest, "templates.%s.%s.from not valid in inputs", tmpl.Name, artRef)
 		}
 		errPrefix := fmt.Sprintf("templates.%s.%s", tmpl.Name, artRef)
 		err = validateArtifactLocation(errPrefix, art.ArtifactLocation)
@@ -767,11 +767,11 @@ func (ctx *templateValidationCtx) validateLeaf(scope map[string]interface{}, tmp
 		if tmpl.Container.Image == "" {
 			switch baseTemplate := tmplCtx.GetCurrentTemplateBase().(type) {
 			case *wfv1.Workflow:
-				if !(baseTemplate.Spec.TemplateDefaults != nil && baseTemplate.Spec.TemplateDefaults.Container != nil && baseTemplate.Spec.TemplateDefaults.Container.Image != "") {
+				if baseTemplate.Spec.TemplateDefaults == nil || baseTemplate.Spec.TemplateDefaults.Container == nil || baseTemplate.Spec.TemplateDefaults.Container.Image == "" {
 					return errors.Errorf(errors.CodeBadRequest, "templates.%s.container.image may not be empty", tmpl.Name)
 				}
 			case *wfv1.WorkflowTemplate:
-				if !(baseTemplate.Spec.TemplateDefaults != nil && baseTemplate.Spec.TemplateDefaults.Container != nil && baseTemplate.Spec.TemplateDefaults.Container.Image != "") {
+				if baseTemplate.Spec.TemplateDefaults == nil || baseTemplate.Spec.TemplateDefaults.Container == nil || baseTemplate.Spec.TemplateDefaults.Container.Image == "" {
 					return errors.Errorf(errors.CodeBadRequest, "templates.%s.container.image may not be empty", tmpl.Name)
 				}
 			default:
@@ -838,11 +838,11 @@ func (ctx *templateValidationCtx) validateLeaf(scope map[string]interface{}, tmp
 		if tmpl.Script.Image == "" {
 			switch baseTemplate := tmplCtx.GetCurrentTemplateBase().(type) {
 			case *wfv1.Workflow:
-				if !(baseTemplate.Spec.TemplateDefaults != nil && baseTemplate.Spec.TemplateDefaults.Script != nil && baseTemplate.Spec.TemplateDefaults.Script.Image != "") {
+				if baseTemplate.Spec.TemplateDefaults == nil || baseTemplate.Spec.TemplateDefaults.Script == nil || baseTemplate.Spec.TemplateDefaults.Script.Image == "" {
 					return errors.Errorf(errors.CodeBadRequest, "templates.%s.script.image may not be empty", tmpl.Name)
 				}
 			case *wfv1.WorkflowTemplate:
-				if !(baseTemplate.Spec.TemplateDefaults != nil && baseTemplate.Spec.TemplateDefaults.Script != nil && baseTemplate.Spec.TemplateDefaults.Script.Image != "") {
+				if baseTemplate.Spec.TemplateDefaults == nil || baseTemplate.Spec.TemplateDefaults.Script == nil || baseTemplate.Spec.TemplateDefaults.Script.Image == "" {
 					return errors.Errorf(errors.CodeBadRequest, "templates.%s.script.image may not be empty", tmpl.Name)
 				}
 			default:

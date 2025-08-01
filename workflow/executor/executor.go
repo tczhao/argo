@@ -207,17 +207,15 @@ func (we *WorkflowExecutor) LoadArtifacts(ctx context.Context) error {
 		gitLoopCount := 0
 		if art.Git != nil {
 			// if git artifact, try s3 first
-			for {
-				if gitLoopCount >= 3 || !proceed {
-					break
-				}
+			for gitLoopCount < 3 && proceed {
+
 				proceed = true
 				branch := "master"
 				if art.Git.Branch != "" {
 					branch = art.Git.Branch
 				}
 				repoString := art.Git.Repo[strings.LastIndex(art.Git.Repo, ":")+1:]
-				repoStringArray := strings.Split(strings.Replace(repoString, ".git", "", -1), "/")
+				repoStringArray := strings.Split(strings.ReplaceAll(repoString, ".git", ""), "/")
 				repoString = repoStringArray[len(repoStringArray)-2] + "/" + repoStringArray[len(repoStringArray)-1]
 				s3Key := "git-artifacts/workflow/" + we.workflow + "/" + repoString + "/" + branch
 
