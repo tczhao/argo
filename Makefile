@@ -196,7 +196,7 @@ SWAGGER_FILES := pkg/apiclient/_.primary.swagger.json \
 	pkg/apiclient/workflowarchive/workflow-archive.swagger.json \
 	pkg/apiclient/workflowtemplate/workflow-template.swagger.json
 PROTO_BINARIES := $(TOOL_PROTOC_GEN_GOGO) $(TOOL_PROTOC_GEN_GOGOFAST) $(TOOL_GOIMPORTS) $(TOOL_PROTOC_GEN_GRPC_GATEWAY) $(TOOL_PROTOC_GEN_SWAGGER) $(TOOL_CLANG_FORMAT)
-GENERATED_DOCS := docs/fields.md docs/cli/argo.md docs/workflow-controller-configmap.md
+GENERATED_DOCS := docs/fields.md docs/cli/argo.md
 
 # protoc,my.proto
 define protoc
@@ -323,7 +323,6 @@ argoexec-nonroot-image:
 .PHONY: codegen
 codegen: types swagger manifests $(TOOL_MOCKERY) $(GENERATED_DOCS)
 	go generate ./...
-	$(TOOL_MOCKERY) --config .mockery.yaml
  	# The generated markdown contains links to nowhere for interfaces, so remove them
 	sed -i.bak 's/\[interface{}\](#interface)/`interface{}`/g' docs/executor_swagger.md && rm -f docs/executor_swagger.md.bak
 	make --directory sdks/java USE_NIX=$(USE_NIX) generate
@@ -359,7 +358,7 @@ swagger: \
 $(TOOL_MOCKERY): Makefile
 # update this in Nix when upgrading it here
 ifneq ($(USE_NIX), true)
-	go install github.com/vektra/mockery/v3@v3.5.1
+	go install github.com/vektra/mockery/v2@v2.53.3
 endif
 $(TOOL_CONTROLLER_GEN): Makefile
 # update this in Nix when upgrading it here
@@ -476,7 +475,7 @@ pkg/apiclient/workflowtemplate/workflow-template.swagger.json: $(PROTO_BINARIES)
 
 # generate other files for other CRDs
 manifests/base/crds/full/argoproj.io_workflows.yaml: $(TOOL_CONTROLLER_GEN) $(TYPES) ./hack/manifests/crdgen.sh ./hack/manifests/crds.go
-	./hack/manifests/crdgen.sh
+	bash ./hack/manifests/crdgen.sh
 
 .PHONY: manifests
 manifests: \
@@ -493,23 +492,23 @@ manifests: \
 
 .PHONY: manifests/install.yaml
 manifests/install.yaml: /dev/null
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/cluster-install | ./hack/manifests/auto-gen-msg.sh > manifests/install.yaml
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/cluster-install | bash ./hack/manifests/auto-gen-msg.sh > manifests/install.yaml
 
 .PHONY: manifests/namespace-install.yaml
 manifests/namespace-install.yaml: /dev/null
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/namespace-install | ./hack/manifests/auto-gen-msg.sh > manifests/namespace-install.yaml
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/namespace-install | bash ./hack/manifests/auto-gen-msg.sh > manifests/namespace-install.yaml
 
 .PHONY: manifests/quick-start-minimal.yaml
 manifests/quick-start-minimal.yaml: /dev/null
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/quick-start/minimal | ./hack/manifests/auto-gen-msg.sh > manifests/quick-start-minimal.yaml
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/quick-start/minimal | bash ./hack/manifests/auto-gen-msg.sh > manifests/quick-start-minimal.yaml
 
 .PHONY: manifests/quick-start-mysql.yaml
 manifests/quick-start-mysql.yaml: /dev/null
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/quick-start/mysql | ./hack/manifests/auto-gen-msg.sh > manifests/quick-start-mysql.yaml
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/quick-start/mysql | bash ./hack/manifests/auto-gen-msg.sh > manifests/quick-start-mysql.yaml
 
 .PHONY: manifests/quick-start-postgres.yaml
 manifests/quick-start-postgres.yaml: /dev/null
-	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/quick-start/postgres | ./hack/manifests/auto-gen-msg.sh > manifests/quick-start-postgres.yaml
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone manifests/quick-start/postgres | bash ./hack/manifests/auto-gen-msg.sh > manifests/quick-start-postgres.yaml
 
 dist/manifests/%: manifests/%
 	@mkdir -p dist/manifests
@@ -545,7 +544,7 @@ lint-ui: ui/dist/app/index.html
 
 # for local we have a faster target that prints to stdout, does not use json, and can cache because it has no coverage
 .PHONY: test
-test: ui/dist/app/index.html util/telemetry/metrics_list.go util/telemetry/attributes.go $(TOOL_GOTESTSUM) $(JSON_TEST_OUTPUT)
+test: ui/dist/app/index.html $(TOOL_GOTESTSUM) $(JSON_TEST_OUTPUT)
 	go build ./...
 	env KUBECONFIG=/dev/null $(call gotest,./...,unit,-p 20)
 	# marker file, based on it's modification time, we know how long ago this target was run
@@ -752,7 +751,7 @@ dist/mixed.swagger.json: $(TOOL_SWAGGER) $(SWAGGER_FILES) dist/swagger-conflicts
 	swagger mixin -c $(shell cat dist/swagger-conflicts) $(SWAGGER_FILES) -o dist/mixed.swagger.json
 
 dist/swaggifed.swagger.json: dist/mixed.swagger.json hack/api/swagger/swaggify.sh
-	cat dist/mixed.swagger.json | ./hack/api/swagger/swaggify.sh > dist/swaggifed.swagger.json
+	cat dist/mixed.swagger.json | bash ./hack/api/swagger/swaggify.sh > dist/swaggifed.swagger.json
 
 dist/kubeified.swagger.json: dist/swaggifed.swagger.json dist/kubernetes.swagger.json
 	go run ./hack/api/swagger kubeifyswagger dist/swaggifed.swagger.json dist/kubeified.swagger.json

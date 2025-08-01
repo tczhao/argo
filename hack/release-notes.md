@@ -6,7 +6,7 @@ Find out on [our blog](https://blog.argoproj.io) and [changelog](https://github.
 
 ## Breaking Changes and Known Issues
 
-Check the [upgrading guide](https://argo-workflows.readthedocs.io/en/release-3.5/upgrading/) and search for [existing issues on GitHub](https://github.com/argoproj/argo-workflows/issues).
+Check the [upgrading guide](https://argo-workflows.readthedocs.io/en/latest/upgrading/) and search for [existing issues on GitHub](https://github.com/argoproj/argo-workflows/issues).
 
 ## Installation
 
@@ -19,7 +19,7 @@ Available via `curl`
 ```bash
 # Detect OS
 ARGO_OS="darwin"
-if [[ "$(uname -s)" != "Darwin" ]]; then
+if [[ uname -s != "Darwin" ]]; then
   ARGO_OS="linux"
 fi
 

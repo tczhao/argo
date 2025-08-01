@@ -88,7 +88,7 @@ spec:
 					return startTimes[i].Before(startTimes[j])
 				})
 				// Everything started with same time
-				assert.Equal(t, 0, startTimes[3].Sub(startTimes[0]))
+				assert.Equal(t, time.Duration(0), startTimes[3].Sub(startTimes[0]))
 			}
 		})
 }

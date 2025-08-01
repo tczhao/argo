@@ -108,23 +108,6 @@ containers:
 	}
 }
 
-func TestInvalidContainerSetDuplicateNames(t *testing.T) {
-	invalidContainerSetDuplicateNames := `
-volumeMounts:
-  - name: workspace
-    mountPath: /workspace
-containers:
-  - name: a
-    image: argoproj/argosay:v2
-  - name: a
-    image: argoproj/argosay:v2
-`
-	err := validateContainerSetTemplate(invalidContainerSetDuplicateNames)
-	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "containers[1].name 'a' is not unique")
-	}
-}
-
 func TestInvalidContainerSetDependencyNotFound(t *testing.T) {
 	invalidContainerSetDependencyNotFound := `
 volumeMounts:

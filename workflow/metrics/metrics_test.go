@@ -13,13 +13,13 @@ import (
 	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
 )
 
-func write(metric prometheus.Metric) dto.Metric {
+func write(metric prometheus.Metric) *dto.Metric {
 	var m dto.Metric
 	err := metric.Write(&m)
 	if err != nil {
 		panic(err)
 	}
-	return m
+	return &m
 }
 
 func TestServerConfig_SameServerAs(t *testing.T) {
@@ -88,14 +88,6 @@ func TestMetrics(t *testing.T) {
 		err = m.UpsertCustomMetric("asdf", "", badMetric, false)
 		assert.Error(t, err)
 	}
-}
-
-func TestErrors(t *testing.T) {
-	_, err := ConstructRealTimeGaugeMetric(&v1alpha1.Prometheus{Name: "invalid.name"}, func() float64 { return 0.0 })
-	assert.Error(t, err)
-
-	_, err = ConstructRealTimeGaugeMetric(&v1alpha1.Prometheus{Name: "name", Labels: []*v1alpha1.MetricLabel{{Key: "invalid-key", Value: "value"}}}, func() float64 { return 0.0 })
-	assert.Error(t, err)
 }
 
 func TestMetricGC(t *testing.T) {

@@ -1,0 +1,24 @@
+{"Time":"2025-08-01T14:12:38.541140132Z","Action":"start","Package":"github.com/argoproj/argo-workflows/v3/test/e2e"}
+{"Time":"2025-08-01T14:12:38.558635883Z","Action":"run","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestAgentSuite"}
+{"Time":"2025-08-01T14:12:38.558659166Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestAgentSuite","Output":"=== RUN   TestAgentSuite\n"}
+{"Time":"2025-08-01T14:12:38.575552889Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestAgentSuite","Output":"--- PASS: TestAgentSuite (0.02s)\n"}
+{"Time":"2025-08-01T14:12:38.57559025Z","Action":"pass","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestAgentSuite","Elapsed":0.02}
+{"Time":"2025-08-01T14:12:38.575596588Z","Action":"run","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArgoServerSuite"}
+{"Time":"2025-08-01T14:12:38.575603998Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArgoServerSuite","Output":"=== RUN   TestArgoServerSuite\n"}
+{"Time":"2025-08-01T14:12:38.57981151Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArgoServerSuite","Output":"--- PASS: TestArgoServerSuite (0.00s)\n"}
+{"Time":"2025-08-01T14:12:38.579838874Z","Action":"pass","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArgoServerSuite","Elapsed":0}
+{"Time":"2025-08-01T14:12:38.57984365Z","Action":"run","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArtifactsSuite"}
+{"Time":"2025-08-01T14:12:38.579845805Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArtifactsSuite","Output":"=== RUN   TestArtifactsSuite\n"}
+{"Time":"2025-08-01T14:12:38.582943149Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArtifactsSuite","Output":"--- PASS: TestArtifactsSuite (0.00s)\n"}
+{"Time":"2025-08-01T14:12:38.582968259Z","Action":"pass","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestArtifactsSuite","Elapsed":0}
+{"Time":"2025-08-01T14:12:38.58297314Z","Action":"run","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCLISuite"}
+{"Time":"2025-08-01T14:12:38.582975172Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCLISuite","Output":"=== RUN   TestCLISuite\n"}
+{"Time":"2025-08-01T14:12:38.586622554Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCLISuite","Output":"--- PASS: TestCLISuite (0.00s)\n"}
+{"Time":"2025-08-01T14:12:38.586650907Z","Action":"pass","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCLISuite","Elapsed":0}
+{"Time":"2025-08-01T14:12:38.586655638Z","Action":"run","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestClusterWorkflowTemplateSuite"}
+{"Time":"2025-08-01T14:12:38.586657153Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestClusterWorkflowTemplateSuite","Output":"=== RUN   TestClusterWorkflowTemplateSuite\n"}
+{"Time":"2025-08-01T14:12:38.590276434Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestClusterWorkflowTemplateSuite","Output":"--- PASS: TestClusterWorkflowTemplateSuite (0.00s)\n"}
+{"Time":"2025-08-01T14:12:38.590315353Z","Action":"pass","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestClusterWorkflowTemplateSuite","Elapsed":0}
+{"Time":"2025-08-01T14:12:38.590321142Z","Action":"run","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCronSuite"}
+{"Time":"2025-08-01T14:12:38.590332518Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCronSuite","Output":"=== RUN   TestCronSuite\n"}
+{"Time":"2025-08-01T14:12:38.590339404Z","Action":"output","Package":"github.com/argoproj/argo-workflows/v3/test/e2e","Test":"TestCronSuite","Output":"time=\"2025-08-01T14:12:38Z\" level=info msg=\"Waiting 52 seconds to start\"\n"}

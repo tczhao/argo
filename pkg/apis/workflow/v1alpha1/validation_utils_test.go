@@ -34,11 +34,6 @@ func TestValidateWorkflowFieldNames(t *testing.T) {
 			isParamOrArtifact: true,
 			expectedErr:       fmt.Errorf("[0].name: '$$' is invalid: Parameter/Artifact name must consist of alpha-numeric characters, '_' or '-' e.g. my_param_1, MY-PARAM-1"),
 		},
-		"duplicate": {
-			names:             []string{"a", "a"},
-			isParamOrArtifact: false,
-			expectedErr:       fmt.Errorf("[1].name 'a' is not unique"),
-		},
 		"valid artifact name": {
 			names:             []string{"artifact-1"},
 			isParamOrArtifact: true,

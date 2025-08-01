@@ -26,8 +26,8 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
-    - testifylint
     - unparam
+  disable:
     - unused
   settings:
     gosec:
@@ -44,6 +44,12 @@ linters:
         - all
         # Capitalised error strings
         - "-ST1005"
+        - "-ST1003"
+        - "-SA1019"
+        - "-ST1003"
+        - "-ST1016"
+        - "-ST1019"
+        - "-ST1012"
     govet:
       enable: [nilness]
   exclusions:

@@ -76,7 +76,7 @@ export function artifactKey<A extends Artifact>(a: A) {
         return a.azure.blob;
     }
     return 'unknown';
-};
+}
 
 export const findArtifact = (status: WorkflowStatus, urn: string) => {
     const artifacts: (Artifact & {nodeId: string; artifactNameDiscriminator: string})[] = [];

@@ -276,10 +276,7 @@ func (cc *Controller) syncCronWorkflow(ctx context.Context, cronWf *v1alpha1.Cro
 	if err != nil {
 		return err
 	}
-	err = cwoc.reconcileActiveWfs(ctx, workflows)
-	if err != nil {
-		return err
-	}
+	cwoc.reconcileActiveWfs(ctx, workflows)
 
 	return nil
 }
