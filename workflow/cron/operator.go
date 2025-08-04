@@ -104,6 +104,7 @@ func (woc *cronWfOperationCtx) run(ctx context.Context, scheduledRuntime time.Ti
 	if err != nil {
 		// If the workflow already exists (i.e. this is a duplicate submission), do not report an error
 		if errors.IsAlreadyExists(err) {
+			woc.cronWf.Status.LastScheduledTime = &v1.Time{Time: scheduledRuntime}
 			return
 		}
 		woc.reportCronWorkflowError(v1alpha1.ConditionTypeSubmissionError, fmt.Sprintf("Failed to submit Workflow: %s", err))
