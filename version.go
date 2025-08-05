@@ -28,7 +28,7 @@ func ImageTag() string {
 
 // GetVersion returns the version information
 func GetVersion() wfv1.Version {
-	var versionStr = "v3.5.14-atlan-1.2.6"
+	var versionStr = "v3.5.14-atlan-1.2.7"
 	return wfv1.Version{
 		Version:      versionStr,
 		BuildDate:    buildDate,

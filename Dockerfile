@@ -32,8 +32,8 @@ RUN apk update && apk add --no-cache git
 COPY ui/package.json ui/yarn.lock ui/
 
 RUN --mount=type=cache,target=/root/.yarn \
-  YARN_CACHE_FOLDER=/root/.yarn JOBS=max \
-  yarn --cwd ui install --network-timeout 1000000
+  YARN_CACHE_FOLDER=/root/.yarn \
+  yarn --cwd ui install --network-timeout 1000000 --network-concurrency 1
 
 COPY ui ui
 COPY api api
@@ -108,6 +108,7 @@ USER 8737
 
 WORKDIR /home/argo
 
+ENV GRPC_ENFORCE_ALPN_ENABLED=false
 COPY hack/ssh_known_hosts /etc/ssh/
 COPY hack/nsswitch.conf /etc/
 COPY --from=argocli-build /go/src/github.com/argoproj/argo-workflows/dist/argo /bin/
