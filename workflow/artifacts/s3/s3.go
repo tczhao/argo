@@ -121,6 +121,7 @@ type ArtifactDriver struct {
 	TrustedCA             string
 	AccessKey             string
 	SecretKey             string
+	SessionToken          string
 	RoleARN               string
 	UseSDKCreds           bool
 	Context               context.Context
