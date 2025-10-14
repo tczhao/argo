@@ -704,6 +704,77 @@ spec:
 	}
 }
 
+func TestParallelismBypass(t *testing.T) {
+	for tt, f := range map[string]func(controller *WorkflowController){
+		"Parallelism": func(x *WorkflowController) {
+			x.Config.Parallelism = 1
+		},
+		"NamespaceParallelism": func(x *WorkflowController) {
+			x.Config.NamespaceParallelism = 1
+		},
+	} {
+		t.Run(tt, func(t *testing.T) {
+			cancel, controller := newController(
+				wfv1.MustUnmarshalWorkflow(`
+metadata:
+  name: my-wfb-0
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: my-image
+`),
+				wfv1.MustUnmarshalWorkflow(`
+metadata:
+  name: my-wfb-1
+  annotations:
+    bypass-parallelism: "true"
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: my-image
+`),
+				wfv1.MustUnmarshalWorkflow(`
+metadata:
+  name: my-wfb-2
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      container:
+        image: my-image
+`),
+				f,
+			)
+			defer cancel()
+			ctx := context.Background()
+			assert.True(t, controller.processNextItem(ctx))
+			assert.True(t, controller.processNextItem(ctx))
+			assert.True(t, controller.processNextItem(ctx))
+
+			expectWorkflow(ctx, controller, "my-wfb-0", func(wf *wfv1.Workflow) {
+				if assert.NotNil(t, wf) {
+					assert.Equal(t, wfv1.WorkflowRunning, wf.Status.Phase)
+				}
+			})
+			expectWorkflow(ctx, controller, "my-wfb-1", func(wf *wfv1.Workflow) {
+				if assert.NotNil(t, wf) {
+					assert.Equal(t, wfv1.WorkflowRunning, wf.Status.Phase)
+				}
+			})
+			expectWorkflow(ctx, controller, "my-wfb-2", func(wf *wfv1.Workflow) {
+				if assert.NotNil(t, wf) {
+					assert.Equal(t, wfv1.WorkflowPending, wf.Status.Phase)
+					assert.Equal(t, "Workflow processing has been postponed because too many workflows are already running", wf.Status.Message)
+				}
+			})
+		})
+	}
+}
+
 func TestWorkflowController_archivedWorkflowGarbageCollector(t *testing.T) {
 	cancel, controller := newController()
 	defer cancel()
