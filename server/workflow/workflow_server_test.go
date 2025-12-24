@@ -798,6 +798,7 @@ func TestRetryWorkflow(t *testing.T) {
 	server, ctx := getWorkflowServer()
 	t.Run("Labelled", func(t *testing.T) {
 		retried, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "failed", Namespace: "workflows"})
+		assert.Equal(t, string(creator.ActionRetry), retried.Labels[common.LabelKeyAction])
 		if assert.NoError(t, err) {
 			assert.NotNil(t, retried)
 		}
