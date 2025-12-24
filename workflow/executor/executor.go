@@ -211,6 +211,8 @@ func (we *WorkflowExecutor) LoadArtifacts(ctx context.Context) error {
 
 				proceed = true
 				branch := "master"
+				if art.Git.Revision != "" {
+					branch = art.Git.Revision
 				if art.Git.Branch != "" {
 					branch = art.Git.Branch
 				}
