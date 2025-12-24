@@ -121,7 +121,8 @@ func (d *dagContext) getTaskNode(taskName string) *wfv1.NodeStatus {
 	nodeID := d.taskNodeID(taskName)
 	node, err := d.wf.Status.Nodes.Get(nodeID)
 	if err != nil {
-		log.Warnf("was unable to obtain the node for %s, taskName %s", nodeID, taskName)
+		// TODO
+		// log.Warnf("was unable to obtain the node for %s, taskName %s", nodeID, taskName)
 		return nil
 	}
 	return node
