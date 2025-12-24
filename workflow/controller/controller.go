@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	gosync "sync"
 	"syscall"
@@ -819,6 +820,13 @@ func (wfc *WorkflowController) processNextItem(ctx context.Context) bool {
 		val, ok := annotation["bypass-parallelism"]
 		if ok {
 			bypassParallelism = val
+		}
+	}
+	wfParallelismBypassPattern, _ := os.LookupEnv("WF_PARALLELISM_BYPASS_PATTERN")
+	if wfParallelismBypassPattern != "" {
+		matchWfPattern, _ := regexp.MatchString(wfParallelismBypassPattern, wf.Name)
+		if matchWfPattern {
+			bypassParallelism = "true"
 		}
 	}
 
