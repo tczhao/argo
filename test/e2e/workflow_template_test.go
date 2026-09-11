@@ -1,5 +1,4 @@
 //go:build functional
-// +build functional
 
 package e2e
 
@@ -12,8 +11,9 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	"github.com/argoproj/argo-workflows/v3/test/e2e/fixtures"
+	"github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/test/e2e/fixtures"
+	"github.com/argoproj/argo-workflows/v4/workflow/common"
 )
 
 type WorkflowTemplateSuite struct {
@@ -49,7 +49,7 @@ spec:
 		WaitForWorkflow().
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowSucceeded)
+			assert.Equal(t, v1alpha1.WorkflowSucceeded, status.Phase)
 		})
 }
 
@@ -62,7 +62,7 @@ func (s *WorkflowTemplateSuite) TestSubmitWorkflowTemplateWithEnum() {
 		WaitForWorkflow().
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowSucceeded)
+			assert.Equal(t, v1alpha1.WorkflowSucceeded, status.Phase)
 		})
 }
 
@@ -74,8 +74,15 @@ func (s *WorkflowTemplateSuite) TestSubmitWorkflowTemplateWorkflowMetadataSubsti
 		SubmitWorkflowsFromWorkflowTemplates().
 		WaitForWorkflow().
 		Then().
-		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowSucceeded)
+		ExpectWorkflowNode(v1alpha1.SucceededPodNode, func(t *testing.T, n *v1alpha1.NodeStatus, p *apiv1.Pod) {
+			for _, c := range p.Spec.Containers {
+				if c.Name == "main" {
+					assert.Len(t, c.Args, 3)
+					assert.Equal(t, "echo", c.Args[0])
+					assert.Equal(t, "myLabelArg", c.Args[1])
+					assert.Equal(t, "thisLabelIsFromWorkflowDefaults", c.Args[2])
+				}
+			}
 		})
 }
 
@@ -88,7 +95,7 @@ func (s *WorkflowTemplateSuite) TestSubmitWorkflowTemplateResourceUnquotedExpres
 		WaitForWorkflow().
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowSucceeded)
+			assert.Equal(t, v1alpha1.WorkflowSucceeded, status.Phase)
 		})
 }
 
@@ -101,7 +108,7 @@ func (s *WorkflowTemplateSuite) TestSubmitWorkflowTemplateWithParallelStepsRequi
 		WaitForWorkflow().
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowSucceeded)
+			assert.Equal(t, v1alpha1.WorkflowSucceeded, status.Phase)
 		}).
 		ExpectPVCDeleted()
 }
@@ -122,7 +129,7 @@ spec:
 		WaitForWorkflow(fixtures.ToBeErrored).
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowError)
+			assert.Equal(t, v1alpha1.WorkflowError, status.Phase)
 			assert.Contains(t, status.Message, "error in exit template execution")
 		}).
 		ExpectPVCDeleted()
@@ -144,7 +151,7 @@ spec:
 		WaitForWorkflow(fixtures.ToBeSucceeded).
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowSucceeded)
+			assert.Equal(t, v1alpha1.WorkflowSucceeded, status.Phase)
 		}).
 		ExpectWorkflowNode(func(status v1alpha1.NodeStatus) bool {
 			return strings.Contains(status.Name, "hooks.running")
@@ -174,10 +181,40 @@ spec:
 		WaitForWorkflow(fixtures.ToBeErrored).
 		Then().
 		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
-			assert.Equal(t, status.Phase, v1alpha1.WorkflowError)
+			assert.Equal(t, v1alpha1.WorkflowError, status.Phase)
 			assert.Contains(t, status.Message, "error in entry template execution")
 		}).
 		ExpectPVCDeleted()
+}
+
+func (s *WorkflowTemplateSuite) TestWorkflowFromWorkflowTemplateHasLabel() {
+	s.Given().
+		WorkflowTemplate(`apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: workflow-template-label-test
+spec:
+  entrypoint: whalesay
+  templates:
+  - name: whalesay
+    container:
+      image: argoproj/argosay:v2
+      command: [/argosay]`).
+		Workflow(`
+metadata:
+  generateName: workflow-from-template-label-
+spec:
+  workflowTemplateRef:
+    name: workflow-template-label-test
+`).
+		When().
+		CreateWorkflowTemplates().
+		SubmitWorkflow().
+		WaitForWorkflow(fixtures.ToBeSucceeded).
+		Then().
+		ExpectWorkflow(func(t *testing.T, metadata *v1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
+			assert.Equal(t, "workflow-template-label-test", metadata.Labels[common.LabelKeyWorkflowTemplate])
+		})
 }
 
 func TestWorkflowTemplateSuite(t *testing.T) {

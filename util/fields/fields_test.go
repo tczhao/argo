@@ -4,8 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	wfv1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
 )
 
 var sampleWorkflow = `
@@ -29,7 +30,6 @@ func TestCleaner_WillExclude(t *testing.T) {
 		assert.False(t, NewCleaner("foo").WillExclude("foo.bar"))
 		assert.True(t, NewCleaner("foo").WillExclude("bar"))
 		assert.False(t, NewCleaner("foo.bar.baz").WillExclude("foo.bar"))
-
 	})
 	t.Run("Exclude", func(t *testing.T) {
 		assert.True(t, NewCleaner("-foo").WillExclude("foo"))
@@ -48,7 +48,7 @@ func TestCleaner_WithPrefix(t *testing.T) {
 func TestCleanNoop(t *testing.T) {
 	var wf, cleanWf wfv1.Workflow
 	ok, err := NewCleaner("").Clean(wf, cleanWf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, ok)
 }
 
@@ -56,7 +56,7 @@ func TestCleanFields(t *testing.T) {
 	var wf, cleanWf wfv1.Workflow
 	wfv1.MustUnmarshal([]byte(sampleWorkflow), &wf)
 	ok, err := NewCleaner("status.phase,metadata.name,spec.entrypoint").Clean(wf, &cleanWf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, wfv1.WorkflowSucceeded, cleanWf.Status.Phase)
 	assert.Equal(t, "whalesay", cleanWf.Spec.Entrypoint)
@@ -68,7 +68,7 @@ func TestCleanFieldsExclude(t *testing.T) {
 	var wf, cleanWf wfv1.Workflow
 	wfv1.MustUnmarshal([]byte(sampleWorkflow), &wf)
 	ok, err := NewCleaner("-status.phase,metadata.name,spec.entrypoint").Clean(wf, &cleanWf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, ok)
 	assert.Empty(t, cleanWf.Status.Phase)
 	assert.Empty(t, cleanWf.Spec.Entrypoint)

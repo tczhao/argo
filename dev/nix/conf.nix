@@ -5,7 +5,8 @@
 # Even then the buildFlags are not passed into Go, meaning you won't see the correct version info yet. 
 # This is only intended for quick developing at the moment, gradually more functionality will be pushed here. 
 rec {
-  staticFiles = false; # not acted upon
+  # Keep in sync with go.mod
+  goVersion = "1.26.5";
   version = "latest";
   env = {
     DEFAULT_REQUEUE_TIME = "1s";
@@ -24,6 +25,7 @@ rec {
     LOGS = "true"; # same as CTRL - not acted upon
     UI = "true"; # same as CTRL
     API = "true"; # same as CTRL
+    UI_SECURE = "false";
     PLUGINS = "false";
   };
   controller = {
@@ -46,11 +48,15 @@ rec {
   argoServer = {
     env = {
       UPPERIO_DB_DEBUG = "${env.UPPERIO_DB_DEBUG}";
+      CI_ONLY_DISABLE_ARTIFACT_SERVER_CHECKS = "true";
     };
     args = "--loglevel ${env.LOG_LEVEL} server --namespaced=${env.NAMESPACED} --auth-mode ${env.AUTH_MODE} --secure=${env.SECURE} --x-frame-options=SAMEORIGIN";
   };
   ui = {
-    env = { };
+    env = {
+      ARGO_UI_SECURE = "${env.UI_SECURE}";
+      ARGO_SECURE = "${env.SECURE}";
+    };
     args = "--cwd ui start";
   };
 }

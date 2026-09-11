@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/TwiN/go-color"
+
+	"github.com/argoproj/argo-workflows/v4/cmd/argo/commands/common"
 )
 
 const (
@@ -13,7 +15,8 @@ const (
 
 type formatterPretty struct{}
 
-func (f formatterPretty) Format(l *LintResult) string {
+func (f formatterPretty) Format(l *Result) string {
+	setColorize()
 	if !l.Linted {
 		return ""
 	}
@@ -33,7 +36,8 @@ func (f formatterPretty) Format(l *LintResult) string {
 	return sb.String()
 }
 
-func (f formatterPretty) Summarize(l *LintResults) string {
+func (f formatterPretty) Summarize(l *Results) string {
+	setColorize()
 	if l.Success {
 		return fmt.Sprintf("%s no linting errors found!\n", color.Ize(color.Green, "✔"))
 	}
@@ -48,4 +52,8 @@ func (f formatterPretty) Summarize(l *LintResults) string {
 	}
 
 	return fmt.Sprintln(color.Ize(color.Red, fmt.Sprintf("✖ %d linting errors found!", totErr)))
+}
+
+func setColorize() {
+	color.Toggle(!common.NoColor)
 }

@@ -1,8 +1,6 @@
 package cache
 
 import (
-	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/argoproj/argo-workflows/v3/workflow/common"
+	"github.com/argoproj/argo-workflows/v4/util/logging"
+	"github.com/argoproj/argo-workflows/v4/workflow/common"
 )
 
 func checkServiceAccountExists(saList []*v1.ServiceAccount, name string) bool {
@@ -24,14 +23,13 @@ func checkServiceAccountExists(saList []*v1.ServiceAccount, name string) bool {
 }
 
 func TestServer_K8sUtilsCache(t *testing.T) {
-	_ = os.Setenv("KUBECONFIG", "/dev/null")
-	defer func() { _ = os.Unsetenv("KUBECONFIG") }()
+	t.Setenv("KUBECONFIG", "/dev/null")
 	saLabels := make(map[string]string)
 	saLabels["hello"] = "world"
 
 	secretLabels := make(map[string]string)
 	secretLabels["hi"] = "world"
-	kubeClient := kubefake.NewSimpleClientset(
+	kubeClient := kubefake.NewClientset(
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "sa1", Namespace: "ns1",
@@ -76,17 +74,17 @@ func TestServer_K8sUtilsCache(t *testing.T) {
 			},
 		})
 	cache := NewResourceCache(kubeClient, v1.NamespaceAll)
-	ctx := context.TODO()
+	ctx := logging.TestContext(t.Context())
 	cache.Run(ctx.Done())
 
 	t.Run("List Service Accounts in different namespaces", func(t *testing.T) {
 		sa, _ := cache.ServiceAccountLister.ServiceAccounts("ns1").List(labels.Everything())
-		assert.Equal(t, 2, len(sa))
+		assert.Len(t, sa, 2)
 		assert.True(t, checkServiceAccountExists(sa, "sa1"))
 		assert.True(t, checkServiceAccountExists(sa, "sa2"))
 
 		sa, _ = cache.ServiceAccountLister.ServiceAccounts("ns2").List(labels.Everything())
-		assert.Equal(t, 1, len(sa))
+		assert.Len(t, sa, 1)
 		assert.True(t, checkServiceAccountExists(sa, "sa3"))
 
 		secret, _ := cache.GetSecret(ctx, "ns1", "s1")

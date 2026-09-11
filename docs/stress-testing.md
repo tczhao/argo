@@ -4,7 +4,7 @@ Install `gcloud` binary.
 
 ```bash
 # Login to GCP:
-gloud auth login
+gcloud auth login
 
 # Set-up your config (if needed):
 gcloud config set project alex-sb
@@ -43,7 +43,7 @@ Check Prometheus:
    on first reconciliation). Otherwise, if you see anything else, that might be a problem.
 2. How many errors were logged? `log_messages{level="error"}` What was the cause?
 
-Check PProf to see if there any any hot spots:
+Check PProf to see if there are any hot spots:
 
 ```bash
 go tool pprof -png http://localhost:6060/debug/pprof/allocs

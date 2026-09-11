@@ -10,72 +10,81 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/argoproj/argo-workflows/v3/errors"
-	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow"
-	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	"github.com/argoproj/argo-workflows/v3/workflow/common"
-	controllercache "github.com/argoproj/argo-workflows/v3/workflow/controller/cache"
+	argoerrors "github.com/argoproj/argo-workflows/v4/errors"
+	"github.com/argoproj/argo-workflows/v4/pkg/apis/workflow"
+	wfv1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/util/logging"
+	"github.com/argoproj/argo-workflows/v4/workflow/common"
+	controllercache "github.com/argoproj/argo-workflows/v4/workflow/controller/cache"
 )
 
-func (woc *wfOperationCtx) patchTaskSet(ctx context.Context, patch interface{}, pathTypeType types.PatchType) error {
+func (woc *wfOperationCtx) mergePatchTaskSet(ctx context.Context, patch any, subresources ...string) error {
 	patchByte, err := json.Marshal(patch)
 	if err != nil {
-		return errors.InternalWrapError(err)
+		return argoerrors.InternalWrapError(err)
 	}
-	_, err = woc.controller.wfclientset.ArgoprojV1alpha1().WorkflowTaskSets(woc.wf.Namespace).Patch(ctx, woc.wf.Name, pathTypeType, patchByte, metav1.PatchOptions{})
+	_, err = woc.controller.wfclientset.ArgoprojV1alpha1().WorkflowTaskSets(woc.wf.Namespace).Patch(ctx, woc.wf.Name, types.MergePatchType, patchByte, metav1.PatchOptions{}, subresources...)
 	if err != nil {
-		return fmt.Errorf("failed patching taskset: %v", err)
+		return fmt.Errorf("failed patching taskset: %w", err)
 	}
 	return nil
 }
 
-func (woc *wfOperationCtx) getDeleteTaskAndNodePatch() map[string]interface{} {
-	deletedNode := make(map[string]interface{})
-	for _, node := range woc.wf.Status.Nodes {
-		if (node.Type == wfv1.NodeTypeHTTP || node.Type == wfv1.NodeTypePlugin) && node.Fulfilled() {
+func (woc *wfOperationCtx) getDeleteTaskAndNodePatch(nodes wfv1.Nodes) (tasksPatch map[string]any, nodesPatch map[string]any) {
+	deletedNode := make(map[string]any)
+	for _, node := range nodes {
+		if node.IsTaskSetNode() && node.Fulfilled() {
 			deletedNode[node.ID] = nil
 		}
 	}
 
 	// Delete the completed Tasks and nodes status
-	patch := map[string]interface{}{
-		"spec": map[string]interface{}{
+	tasksPatch = map[string]any{
+		"spec": map[string]any{
 			"tasks": deletedNode,
 		},
-		"status": map[string]interface{}{
+	}
+	nodesPatch = map[string]any{
+		"status": map[string]any{
 			"nodes": deletedNode,
 		},
 	}
-	return patch
+	return
 }
-func taskSetNode(n wfv1.NodeStatus) bool {
-	return n.Type == wfv1.NodeTypeHTTP || n.Type == wfv1.NodeTypePlugin
+
+func (woc *wfOperationCtx) markTaskSetNodesError(ctx context.Context, err error) {
+	for _, node := range woc.wf.Status.Nodes {
+		if node.IsTaskSetNode() && !node.Fulfilled() {
+			woc.markNodeError(ctx, node.Name, err)
+		}
+	}
 }
 
 func (woc *wfOperationCtx) hasTaskSetNodes() bool {
-	return woc.wf.Status.Nodes.Any(taskSetNode)
+	return woc.wf.Status.Nodes.Any(func(node wfv1.NodeStatus) bool {
+		return node.IsTaskSetNode()
+	})
 }
 
-func (woc *wfOperationCtx) removeCompletedTaskSetStatus(ctx context.Context) error {
-	if !woc.hasTaskSetNodes() {
+func (woc *wfOperationCtx) removeCompletedTaskSetStatus(ctx context.Context, nodes wfv1.Nodes) error {
+	// Avoid sending empty patches when there are no completed taskset nodes to remove.
+	if !nodes.Any(func(node wfv1.NodeStatus) bool {
+		return node.IsTaskSetNode() && node.Fulfilled()
+	}) {
 		return nil
 	}
-	return woc.patchTaskSet(ctx, woc.getDeleteTaskAndNodePatch(), types.MergePatchType)
-}
-
-func (woc *wfOperationCtx) completeTaskSet(ctx context.Context) error {
-	if !woc.hasTaskSetNodes() {
-		return nil
+	tasksPatch, nodesPatch := woc.getDeleteTaskAndNodePatch(nodes)
+	if woc.wf.Status.Fulfilled() {
+		tasksPatch["metadata"] = metav1.ObjectMeta{
+			Labels: map[string]string{
+				common.LabelKeyCompleted: "true",
+			},
+		}
 	}
-	patch := woc.getDeleteTaskAndNodePatch()
-	patch["metadata"] = metav1.ObjectMeta{
-		Labels: map[string]string{
-			common.LabelKeyCompleted: "true",
-		},
+	if err := woc.mergePatchTaskSet(ctx, nodesPatch, "status"); err != nil {
+		return err
 	}
-	return woc.patchTaskSet(ctx, patch, types.MergePatchType)
+	return woc.mergePatchTaskSet(ctx, tasksPatch)
 }
 
 func (woc *wfOperationCtx) getWorkflowTaskSet() (*wfv1.WorkflowTaskSet, error) {
@@ -91,33 +100,33 @@ func (woc *wfOperationCtx) getWorkflowTaskSet() (*wfv1.WorkflowTaskSet, error) {
 
 func (woc *wfOperationCtx) taskSetReconciliation(ctx context.Context) {
 	if err := woc.reconcileTaskSet(ctx); err != nil {
-		woc.log.WithError(err).Error("error in workflowtaskset reconciliation")
+		woc.log.WithError(err).Error(ctx, "error in workflowtaskset reconciliation")
 		return
 	}
 	if err := woc.reconcileAgentPod(ctx); err != nil {
-		woc.log.WithError(err).Error("error in agent pod reconciliation")
-		woc.markWorkflowError(ctx, err)
+		woc.log.WithError(err).Error(ctx, "error in agent pod reconciliation")
+		woc.markTaskSetNodesError(ctx, fmt.Errorf(`create agent pod failed with reason:"%w"`, err))
 		return
 	}
 }
 
-func (woc *wfOperationCtx) nodeRequiresTaskSetReconciliation(nodeName string) bool {
+func (woc *wfOperationCtx) nodeRequiresTaskSetReconciliation(ctx context.Context, nodeName string) bool {
 	node, err := woc.wf.GetNodeByName(nodeName)
 	if err != nil {
 		return false
 	}
 	// If this node is of type HTTP, it will need an HTTP reconciliation
-	if taskSetNode(*node) {
+	if node.IsTaskSetNode() {
 		return true
 	}
 	for _, child := range node.Children {
 		// If any of the node's children need an HTTP reconciliation, the parent node will also need one
 		childNodeName, err := woc.wf.Status.Nodes.GetName(child)
 		if err != nil {
-			woc.log.Fatalf("was unable to get child node name for %s", child)
+			woc.log.WithField("nodeID", child).WithFatal().Error(ctx, "was unable to get child node name for nodeID")
 			panic("unable to obtain child node name")
 		}
-		if woc.nodeRequiresTaskSetReconciliation(childNodeName) {
+		if woc.nodeRequiresTaskSetReconciliation(ctx, childNodeName) {
 			return true
 		}
 	}
@@ -131,13 +140,13 @@ func (woc *wfOperationCtx) reconcileTaskSet(ctx context.Context) error {
 		return err
 	}
 
-	woc.log.Info("TaskSet Reconciliation")
+	woc.log.Info(ctx, "TaskSet Reconciliation")
 	if workflowTaskSet != nil && len(workflowTaskSet.Status.Nodes) > 0 {
 		for nodeID, taskResult := range workflowTaskSet.Status.Nodes {
 			node, err := woc.wf.Status.Nodes.Get(nodeID)
 			if err != nil {
-				woc.log.Warnf("[SPECIAL][DEBUG] returning but assumed validity before")
-				woc.log.Errorf("[DEBUG] Was unable to obtain node for %s", nodeID)
+				woc.log.Warn(ctx, "returning but assumed validity before")
+				woc.log.WithField("nodeID", nodeID).Error(ctx, "was unable to obtain node for nodeID")
 				return err
 			}
 
@@ -146,12 +155,12 @@ func (woc *wfOperationCtx) reconcileTaskSet(ctx context.Context) error {
 			node.Message = taskResult.Message
 			node.FinishedAt = metav1.Now()
 
-			woc.wf.Status.Nodes.Set(nodeID, *node)
+			woc.wf.Status.Nodes.Set(ctx, nodeID, *node)
 			if node.MemoizationStatus != nil && node.Succeeded() {
 				c := woc.controller.cacheFactory.GetCache(controllercache.ConfigMapCache, node.MemoizationStatus.CacheName)
 				err := c.Save(ctx, node.MemoizationStatus.Key, node.ID, node.Outputs)
 				if err != nil {
-					woc.log.WithFields(log.Fields{"nodeID": node.ID}).WithError(err).Error("Failed to save node outputs to cache")
+					woc.log.WithFields(logging.Fields{"nodeID": node.ID}).WithError(err).Error(ctx, "Failed to save node outputs to cache")
 				}
 			}
 			woc.updated = true
@@ -165,7 +174,11 @@ func (woc *wfOperationCtx) createTaskSet(ctx context.Context) error {
 		return nil
 	}
 
-	woc.log.Info("Creating TaskSet")
+	woc.log.Info(ctx, "Creating TaskSet")
+	labels := map[string]string{}
+	if woc.controller.Config.InstanceID != "" {
+		labels[common.LabelKeyControllerInstanceID] = woc.controller.Config.InstanceID
+	}
 	taskSet := wfv1.WorkflowTaskSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       workflow.WorkflowTaskSetKind,
@@ -174,6 +187,7 @@ func (woc *wfOperationCtx) createTaskSet(ctx context.Context) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: woc.wf.Namespace,
 			Name:      woc.wf.Name,
+			Labels:    labels,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion: woc.wf.APIVersion,
@@ -187,13 +201,13 @@ func (woc *wfOperationCtx) createTaskSet(ctx context.Context) error {
 			Tasks: woc.taskSet,
 		},
 	}
-	woc.log.Debug("creating new taskset")
+	woc.log.Debug(ctx, "creating new taskset")
 
 	_, err := woc.controller.wfclientset.ArgoprojV1alpha1().WorkflowTaskSets(woc.wf.Namespace).Create(ctx, &taskSet, metav1.CreateOptions{})
 
 	if apierr.IsConflict(err) || apierr.IsAlreadyExists(err) {
-		woc.log.Debug("patching the exiting taskset")
-		spec := map[string]interface{}{
+		woc.log.Debug(ctx, "patching the exiting taskset")
+		spec := map[string]any{
 			"metadata": metav1.ObjectMeta{
 				Labels: map[string]string{
 					common.LabelKeyCompleted: strconv.FormatBool(woc.wf.Status.Fulfilled()),
@@ -202,13 +216,13 @@ func (woc *wfOperationCtx) createTaskSet(ctx context.Context) error {
 			"spec": wfv1.WorkflowTaskSetSpec{Tasks: woc.taskSet},
 		}
 		// patch the new templates into taskset
-		err = woc.patchTaskSet(ctx, spec, types.MergePatchType)
+		err = woc.mergePatchTaskSet(ctx, spec)
 		if err != nil {
-			woc.log.WithError(err).Error("Failed to patch WorkflowTaskSet")
-			return fmt.Errorf("failed to patch TaskSet. %v", err)
+			woc.log.WithError(err).Error(ctx, "Failed to patch WorkflowTaskSet")
+			return fmt.Errorf("failed to patch TaskSet. %w", err)
 		}
 	} else if err != nil {
-		woc.log.WithError(err).Error("Failed to create WorkflowTaskSet")
+		woc.log.WithError(err).Error(ctx, "Failed to create WorkflowTaskSet")
 		return err
 	}
 	return nil

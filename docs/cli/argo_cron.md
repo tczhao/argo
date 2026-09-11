@@ -19,7 +19,7 @@ argo cron [flags]
 ### Options inherited from parent commands
 
 ```
-      --argo-base-href string          An path to use with HTTP client (e.g. due to BASE_HREF). Defaults to the ARGO_BASE_HREF environment variable.
+      --argo-base-href string          Path to use with HTTP client due to Base HREF. Defaults to the ARGO_BASE_HREF environment variable.
       --argo-http1                     If true, use the HTTP client. Defaults to the ARGO_HTTP1 environment variable.
   -s, --argo-server host:port          API server host:port. e.g. localhost:2746. Defaults to the ARGO_SERVER environment variable.
       --as string                      Username to impersonate for the operation
@@ -30,12 +30,14 @@ argo cron [flags]
       --client-key string              Path to a client key file for TLS
       --cluster string                 The name of the kubeconfig cluster to use
       --context string                 The name of the kubeconfig context to use
+      --disable-compression            If true, opt-out of response compression for all requests to the server
       --gloglevel int                  Set the glog logging level
   -H, --header strings                 Sets additional header to all requests made by Argo CLI. (Can be repeated multiple times to add multiple headers, also supports comma separated headers) Used only when either ARGO_HTTP1 or --argo-http1 is set to true.
       --insecure-skip-tls-verify       If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
   -k, --insecure-skip-verify           If true, the Argo Server's certificate will not be checked for validity. This will make your HTTPS connections insecure. Defaults to the ARGO_INSECURE_SKIP_VERIFY environment variable.
       --instanceid string              submit with a specific controller's instance id label. Default to the ARGO_INSTANCEID environment variable.
       --kubeconfig string              Path to a kube config. Only required if out-of-cluster
+      --log-format string              The formatter to use for logs. One of: text|json (default "text")
       --loglevel string                Set the logging level. One of: debug|info|warn|error (default "info")
   -n, --namespace string               If present, the namespace scope for this CLI request
       --password string                Password for basic authentication to the API server
@@ -53,6 +55,7 @@ argo cron [flags]
 ### SEE ALSO
 
 * [argo](argo.md)	 - argo is the command line interface to Argo
+* [argo cron backfill](argo_cron_backfill.md)	 - create a cron backfill(new alpha feature)
 * [argo cron create](argo_cron_create.md)	 - create a cron workflow
 * [argo cron delete](argo_cron_delete.md)	 - delete a cron workflow
 * [argo cron get](argo_cron_get.md)	 - display details about a cron workflow
@@ -60,4 +63,5 @@ argo cron [flags]
 * [argo cron list](argo_cron_list.md)	 - list cron workflows
 * [argo cron resume](argo_cron_resume.md)	 - resume zero or more cron workflows
 * [argo cron suspend](argo_cron_suspend.md)	 - suspend zero or more cron workflows
+* [argo cron update](argo_cron_update.md)	 - update a cron workflow
 

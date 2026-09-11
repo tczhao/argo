@@ -43,6 +43,41 @@ kubectl delete secret sso
 
 All users will need to log in again. Sorry.
 
+## Logout Redirect URL
+
+> v4.2 and after
+
+By default, logout clears the Argo session and redirects users directly to the UI base href.
+This behavior does not log users out of their identity provider.
+
+The `sso.logoutRedirectUrl` setting configures the post-logout redirect and provider logout for SSO mode. In `client` and `server` modes, the setting is ignored; logout redirects to the UI base href.
+
+The Argo Server logout endpoint is `/auth/logout`; ensure any proxy or ingress routes this path to Argo Server.
+
+For example, to return users to the Argo login page after logout:
+
+```yaml
+sso:
+  logoutRedirectUrl: https://argo.example.com/login
+```
+
+OIDC provider logout is enabled only when both of the following are true:
+
+* The provider advertises an OIDC `end_session_endpoint`.
+* `sso.logoutRedirectUrl` is set to an absolute HTTP(S) URL without user info or a fragment.
+
+When running in SSO mode, Argo Server fails to start if `sso.logoutRedirectUrl` is relative, contains a fragment, or is otherwise invalid.
+For example, `https://example.com/#/signed-out` is rejected; use a path or query parameter instead.
+
+When provider logout is enabled, Argo Server redirects users through the discovered `end_session_endpoint`, passing the configured client ID and `sso.logoutRedirectUrl` as the `post_logout_redirect_uri`.
+Register the exact redirect URL as an allowed post-logout redirect URI with the identity provider before enabling this option.
+
+If provider logout is configured but the discovered `end_session_endpoint` is invalid, provider logout is disabled for that server.
+Argo Server logs `Ignoring invalid OIDC end-session endpoint` at warning level, clears the local cookie, and redirects directly to `sso.logoutRedirectUrl`.
+
+Provider logout is known to work with Keycloak 18 and later, which accepts the `client_id` and `post_logout_redirect_uri` parameters Argo Server sends.
+Okta provider logout is not supported because its end-session endpoint requires `id_token_hint`; Argo Server does not retain the raw ID token because it can exceed browser cookie size limits.
+
 ## SSO RBAC
 
 > v2.12 and after
@@ -83,9 +118,9 @@ metadata:
     # Must evaluate to a boolean.
     # If you want an account to be the default to use, this rule can be "true".
     # Details of the expression language are available in
-    # https://github.com/antonmedv/expr/blob/master/docs/language-definition.md.
+    # https://expr-lang.org/docs/language-definition.
     workflows.argoproj.io/rbac-rule: "'admin' in groups"
-    # The precedence is used to determine which service account to use whe
+    # The precedence is used to determine which service account to use when
     # Precedence is an integer. It may be negative. If omitted, it defaults to "0".
     # Numerically higher values have higher precedence (not lower, which maybe
     # counter-intuitive to you).
@@ -110,16 +145,15 @@ The precedence must be the lowest of all your service accounts.
 
 As of Kubernetes v1.24, secrets for a service account token are no longer automatically created.
 Therefore, service account secrets for SSO RBAC must be created manually.
-See [Manually create secrets](manually-create-secrets.md) for detailed instructions.
+See [Service Account Secrets](service-account-secrets.md) for detailed instructions.
 
 ## SSO RBAC Namespace Delegation
 
 > v3.3 and after
 
 You can optionally configure RBAC SSO per namespace.
-Typically, on organization has a Kubernetes cluster and a central team (the owner of the cluster) manages the cluster. Along with this, there are multiple namespaces which are owned by individual teams. This feature would help namespace owners to define RBAC for their own namespace.
+Typically, an organization has a Kubernetes cluster and a central team (the owner of the cluster) manages the cluster. Along with this, there are multiple namespaces which are owned by individual teams. This feature would help namespace owners to define RBAC for their own namespace.
 
-The feature is currently in beta.
 To enable the feature, set env variable `SSO_DELEGATE_RBAC_TO_NAMESPACE=true` in your argo-server deployment.
 
 ### Recommended usage
@@ -197,12 +231,12 @@ workflows.argoproj.io/rbac-rule: "'argo_admins' in groups"
 
 ## Filtering groups
 
-> v3.5 and above
+> v3.5 and after
 
 You can configure `filterGroupsRegex` to filter the groups returned by the OIDC provider. Some use-cases for this include:
 
-- You have multiple applications using the same OIDC provider, and you only want to use groups that are relevant to Argo Workflows.
-- You have many groups and exceed the [4KB cookie size limit](https://chromestatus.com/feature/4946713618939904) (cookies are used to store authentication tokens). If this occurs, login will fail.
+* You have multiple applications using the same OIDC provider, and you only want to use groups that are relevant to Argo Workflows.
+* You have many groups and exceed the [4KB cookie size limit](https://chromestatus.com/feature/4946713618939904) (cookies are used to store authentication tokens). If this occurs, login will fail.
 
 ```yaml
 sso:
@@ -212,3 +246,42 @@ sso:
     - ".*argo-wf.*"
     - ".*argo-workflow.*"
 ```
+
+## Custom TLS Configuration
+
+> v 3.8 and after
+
+You can configure custom TLS settings for OIDC provider connections. This is useful when your OIDC provider uses self-signed certificates or custom Certificate Authorities.
+
+### Custom CA Certificate
+
+You can specify a custom CA certificate in several ways:
+
+**Default system CA path** - The system automatically loads CA certificates from paths specified by the `SSL_CERT_DIR` and `SSL_CERT_FILE` environment variables. See the [Go documentation](https://pkg.go.dev/crypto/x509#SystemCertPool) for more details.
+
+**Explicit configuration** - You can also explicitly specify custom CA certificates:
+
+* **Inline PEM content** - Provide the CA certificate content directly in the configuration:
+
+```yaml
+sso:
+  # Custom PEM encoded CA certificate file contents
+  rootCA: |-
+    -----BEGIN CERTIFICATE-----
+    MIIDXTCCAkWgAwIBAgIJAKoK/heBjcOuMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
+    ...
+    -----END CERTIFICATE-----
+```
+
+### Skip TLS Verification
+
+For development or testing environments, you can disable TLS certificate verification:
+
+```yaml
+sso:
+  # Skip TLS certificate verification (not recommended for production)
+  insecureSkipVerify: true
+```
+
+!!! Warning
+Using `insecureSkipVerify: true` disables TLS certificate verification and should only be used in development environments. For production, always use proper CA certificates.

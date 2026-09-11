@@ -3,13 +3,17 @@ package argoexpr
 import (
 	"fmt"
 
-	"github.com/antonmedv/expr"
+	"github.com/expr-lang/expr"
 )
 
-func EvalBool(input string, env interface{}) (bool, error) {
-	result, err := expr.Eval(input, env)
+func EvalBool(input string, env any) (bool, error) {
+	program, err := expr.Compile(input, expr.Env(env))
 	if err != nil {
-		return false, fmt.Errorf("unable to evaluate expression '%s': %s", input, err)
+		return false, err
+	}
+	result, err := expr.Run(program, env)
+	if err != nil {
+		return false, fmt.Errorf("unable to evaluate expression '%s': %w", input, err)
 	}
 	resultBool, ok := result.(bool)
 	if !ok {

@@ -1,5 +1,4 @@
 //go:build functional
-// +build functional
 
 package e2e
 
@@ -8,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/argoproj/argo-workflows/v3/test/e2e/fixtures"
+	"github.com/argoproj/argo-workflows/v4/test/e2e/fixtures"
 )
 
 type FailedMainSuite struct {

@@ -1,12 +1,37 @@
 #!/usr/bin/env sh
 set -eu
 
-# escape `*` with `\*`, but except first character
-echo_escape() {
-  echo "$@" | sed "s/\(.\\)[*]/\1\\\\*/g"
+# Set locale for consistent sort output
+export LC_ALL=en_US.UTF-8
+
+# escape `*` with `\*` and then prepend each line with `* `
+to_markdown_list() {
+  sed -e 's/[*]/\\\\*/g' -e 's/^/* /'
 }
 
-git_log='git --no-pager log --no-merges --invert-grep --grep=^\(build\|chore\|ci\|docs\|test\):'
+git_log() {
+  # exclude build, chore, ci, docs, and test of all scopes.
+  # always include deps scope and breaking changes.
+  # always exclude docs and deps-dev scopes and GHA dep bumps
+  # we use a denylist instead of an allowlist because of backward-compat: <=3.4.7 missing some conventional commits, <=2.5.0-rc missing most or all conventional commits
+  git log \
+    --no-merges \
+    --perl-regexp \
+    --abbrev=9 \
+    --invert-grep '--grep=^(build|chore|ci|docs|test)(\((?!deps).*\))?:' \
+    --invert-grep '--grep=^(.+)(\(docs|deps-dev\)):' \
+    --invert-grep '--grep=^chore\(deps\):\sbump\s(actions|dependabot)/.*' \
+    --format='[%h](https://github.com/argoproj/argo-workflows/commit/%H) %s' \
+    "$1" | to_markdown_list
+}
+
+git_shortlog() {
+    git shortlog --summary --group=author --group=trailer:co-authored-by "$1" | \
+      grep -v '\[bot\]$' | \
+      sed 's/^[0-9[:space:]]*//' | \
+      sort -u | \
+      to_markdown_list
+}
 
 echo '# Changelog'
 
@@ -16,12 +41,39 @@ git tag -l 'v*' | grep -v 0.0.0 | sed 's/-rc/~/' | sort -rV | sed 's/~/-rc/' | w
   if [ "$tag" != "" ]; then
     echo
     echo "## $(git for-each-ref --format='%(refname:strip=2) (%(creatordate:short))' refs/tags/${tag})"
-	  output=$($git_log --format='* [%h](https://github.com/argoproj/argo-workflows/commit/%H) %s' "$last..$tag")
-    [ -n "$output" ] && echo && echo_escape "$output"
     echo
-	  echo "### Contributors"
-	  output=$($git_log --format='* %an' $last..$tag | sort -u)
-    [ -n "$output" ] && echo && echo_escape "$output"
+    echo "Full Changelog: [$last...$tag](https://github.com/argoproj/argo-workflows/compare/$last...$tag)"
+    output=$(git_log "$last..$tag")
+    if [ -n "$output" ]; then
+      echo
+      echo "### Selected Changes"
+      echo
+      echo "$output"
+    fi
+    output=$(git_shortlog "$last..$tag")
+    if [ -n "$output" ]; then
+      echo
+      echo "<details><summary><h3>Contributors</h3></summary>" # collapsed
+      echo
+      echo "$output"
+      echo
+      echo "</details>"
+    fi
   fi
   tag=$last
+
+  # skip versions older than v3.x.x as those have been split into a separate file
+  if [ "$tag" = "v3.7.18" ]; then
+    break
+  fi
 done
+
+# footer for versions older than 3.x.x
+echo
+echo "## v3.7.18 (2026-08-14)"
+echo
+echo "For v3 releases, see [CHANGELOG-3-x-x.md](CHANGELOG-3-x-x.md)"
+echo
+echo "## v2.12.13 (2021-08-18)"
+echo
+echo "For v2 releases, see [CHANGELOG-2-x-x.md](CHANGELOG-2-x-x.md)"

@@ -9,13 +9,17 @@ argo archive resubmit [WORKFLOW...] [flags]
 ### Examples
 
 ```
-# Resubmit a workflow:
+# Resubmit a workflow by name:
 
-  argo archive resubmit uid
+  argo archive resubmit my-workflow
+
+# Resubmit a workflow by UID (auto-detected):
+
+  argo archive resubmit a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
 
 # Resubmit multiple workflows:
 
-  argo archive resubmit uid another-uid
+  argo archive resubmit my-workflow another-workflow
 
 # Resubmit multiple workflows by label selector:
 
@@ -27,15 +31,23 @@ argo archive resubmit [WORKFLOW...] [flags]
 
 # Resubmit and wait for completion:
 
-  argo archive resubmit --wait uid
+  argo archive resubmit --wait my-workflow
 
 # Resubmit and watch until completion:
 
-  argo archive resubmit --watch uid
+  argo archive resubmit --watch my-workflow
 
 # Resubmit and tail logs until completion:
 
-  argo archive resubmit --log uid
+  argo archive resubmit --log my-workflow
+
+# Resubmit a workflow by name (forced):
+
+  argo archive resubmit my-workflow --name
+
+# Resubmit a workflow by UID (forced):
+
+  argo archive resubmit a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 --uid
 
 ```
 
@@ -46,10 +58,12 @@ argo archive resubmit [WORKFLOW...] [flags]
   -h, --help                    help for resubmit
       --log                     log the workflow until it completes
       --memoized                re-use successful steps & outputs from the previous run
+      --name                    force the argument to be treated as a name
   -o, --output string           Output format. One of: name|json|yaml|wide
   -p, --parameter stringArray   input parameter to override on the original workflow spec
       --priority int32          workflow priority
   -l, --selector string         Selector (label query) to filter on, not including uninitialized ones, supports '=', '==', and '!='.(e.g. -l key1=value1,key2=value2)
+      --uid                     force the argument to be treated as a UID
   -w, --wait                    wait for the workflow to complete, only works when a single workflow is resubmitted
       --watch                   watch the workflow until it completes, only works when a single workflow is resubmitted
 ```
@@ -57,7 +71,7 @@ argo archive resubmit [WORKFLOW...] [flags]
 ### Options inherited from parent commands
 
 ```
-      --argo-base-href string          An path to use with HTTP client (e.g. due to BASE_HREF). Defaults to the ARGO_BASE_HREF environment variable.
+      --argo-base-href string          Path to use with HTTP client due to Base HREF. Defaults to the ARGO_BASE_HREF environment variable.
       --argo-http1                     If true, use the HTTP client. Defaults to the ARGO_HTTP1 environment variable.
   -s, --argo-server host:port          API server host:port. e.g. localhost:2746. Defaults to the ARGO_SERVER environment variable.
       --as string                      Username to impersonate for the operation
@@ -68,12 +82,14 @@ argo archive resubmit [WORKFLOW...] [flags]
       --client-key string              Path to a client key file for TLS
       --cluster string                 The name of the kubeconfig cluster to use
       --context string                 The name of the kubeconfig context to use
+      --disable-compression            If true, opt-out of response compression for all requests to the server
       --gloglevel int                  Set the glog logging level
   -H, --header strings                 Sets additional header to all requests made by Argo CLI. (Can be repeated multiple times to add multiple headers, also supports comma separated headers) Used only when either ARGO_HTTP1 or --argo-http1 is set to true.
       --insecure-skip-tls-verify       If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure
   -k, --insecure-skip-verify           If true, the Argo Server's certificate will not be checked for validity. This will make your HTTPS connections insecure. Defaults to the ARGO_INSECURE_SKIP_VERIFY environment variable.
       --instanceid string              submit with a specific controller's instance id label. Default to the ARGO_INSTANCEID environment variable.
       --kubeconfig string              Path to a kube config. Only required if out-of-cluster
+      --log-format string              The formatter to use for logs. One of: text|json (default "text")
       --loglevel string                Set the logging level. One of: debug|info|warn|error (default "info")
   -n, --namespace string               If present, the namespace scope for this CLI request
       --password string                Password for basic authentication to the API server

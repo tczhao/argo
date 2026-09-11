@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestItem(t *testing.T) {
@@ -29,11 +30,11 @@ func TestItem(t *testing.T) {
 
 func runItemTest(t *testing.T, data string, expectedType Type) {
 	itm, err := ParseItem(data)
-	assert.NoError(t, err)
-	assert.Equal(t, itm.GetType(), expectedType)
+	require.NoError(t, err)
+	assert.Equal(t, expectedType, itm.GetType())
 	jsonBytes, err := json.Marshal(itm)
-	assert.NoError(t, err)
-	assert.Equal(t, data, string(jsonBytes), "marshalling is symmetric")
+	require.NoError(t, err)
+	assert.JSONEq(t, data, string(jsonBytes), "marshalling is symmetric")
 	if strings.HasPrefix(data, `"`) {
 		assert.Equal(t, data, fmt.Sprintf("\"%v\"", itm))
 		assert.Equal(t, data, fmt.Sprintf("\"%s\"", itm))
@@ -66,7 +67,7 @@ func TestItem_GetStrVal(t *testing.T) {
 
 var testItemStringTable = []struct {
 	name   string
-	origin interface{}
+	origin any
 	str    string
 }{
 	{"json-string", []string{`{"foo": "bar"}`}, `["{\"foo\": \"bar\"}"]`},

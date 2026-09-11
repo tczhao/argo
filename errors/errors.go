@@ -42,7 +42,7 @@ func New(code string, message string) error {
 }
 
 // Errorf returns an error and formats according to a format specifier
-func Errorf(code string, format string, args ...interface{}) error {
+func Errorf(code string, format string, args ...any) error {
 	return New(code, fmt.Sprintf(format, args...))
 }
 
@@ -52,7 +52,7 @@ func InternalError(message string) error {
 }
 
 // InternalErrorf is a convenience function to format an Internal error
-func InternalErrorf(format string, args ...interface{}) error {
+func InternalErrorf(format string, args ...any) error {
 	return Errorf(CodeInternal, format, args...)
 }
 
@@ -65,7 +65,7 @@ func InternalWrapError(err error, message ...string) error {
 }
 
 // InternalWrapErrorf annotates the error with the ERR_INTERNAL code and a stack trace, optional message
-func InternalWrapErrorf(err error, format string, args ...interface{}) error {
+func InternalWrapErrorf(err error, format string, args ...any) error {
 	return Wrap(err, CodeInternal, fmt.Sprintf(format, args...))
 }
 
@@ -92,7 +92,7 @@ func Wrap(err error, code string, message string) error {
 // be returned. If the error is nil, nil will be returned without further
 // investigation.
 func Cause(err error) error {
-	if argoErr, ok := err.(argoerr); ok {
+	if argoErr, ok := errors.AsType[argoerr](err); ok {
 		return unwrapCauseArgoErr(argoErr.err)
 	}
 	return unwrapCause(err)
@@ -152,8 +152,6 @@ func (e argoerr) HTTPCode() int {
 		return http.StatusBadRequest
 	case CodeNotImplemented:
 		return http.StatusNotImplemented
-	case CodeTimeout, CodeInternal:
-		return http.StatusInternalServerError
 	default:
 		return http.StatusInternalServerError
 	}
@@ -161,7 +159,7 @@ func (e argoerr) HTTPCode() int {
 
 // IsCode is a helper to determine if the error is of a specific code
 func IsCode(code string, err error) bool {
-	if argoErr, ok := err.(argoerr); ok {
+	if argoErr, ok := errors.AsType[argoerr](err); ok {
 		return argoErr.code == code
 	}
 	return false

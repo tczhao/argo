@@ -1,7 +1,6 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  clusterName: ""
   creationTimestamp: 2018-08-01T10:22:43Z
   generateName: dag-with-retries-
   generation: 1
@@ -31,7 +30,7 @@ spec:
       command:
       - sh
       - -c
-      image: alpine:latest
+      image: alpine:3.23
       name: ""
       resources: {}
     inputs: {}

@@ -3,30 +3,32 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: steps-tmpl-timeout-
+  labels:
+    workflows.argoproj.io/no-test: "environment"
 spec:
-  entrypoint: hello-hello-hello
+  entrypoint: sleep-sleep
   templates:
-  - name: hello-hello-hello
+  - name: sleep-sleep
     steps:
-    - - name: hello1
+    - - name: sleep1
         continueOn:
           error: true
-        template: whalesay
+        template: sleep
         arguments:
           parameters: [{name: timeout, value: "10s"}]
-      - name: hello2
+      - name: sleep2
         continueOn:
           failed: true
-        template: whalesay
+        template: sleep
         arguments:
           parameters: [{name: timeout, value: "10s"}]
 
-  - name: whalesay
+  - name: sleep
     timeout: "{{inputs.parameters.timeout}}"
     inputs:
       parameters:
       - name: timeout
     container:
-      image: alpine:latest
+      image: alpine:3.23
       command: [sh, -c]
       args: ["sleep 30s"]

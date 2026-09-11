@@ -4,12 +4,24 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/argoproj/argo-workflows/v3/server/auth/types"
+	"github.com/argoproj/argo-workflows/v4/server/auth/types"
 )
 
 var NullSSO Interface = nullService{}
 
 type nullService struct{}
+
+func (n nullService) LogoutURL() string {
+	return ""
+}
+
+func (n nullService) LogoutRedirectURL() string {
+	return ""
+}
+
+func (n nullService) ClientID() string {
+	return ""
+}
 
 func (n nullService) IsRBACEnabled() bool {
 	return false

@@ -3,32 +3,42 @@ package workflow
 import (
 	"context"
 	"fmt"
-
 	"testing"
-	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
 
-	"github.com/argoproj/argo-workflows/v3/persist/sqldb"
-	"github.com/argoproj/argo-workflows/v3/persist/sqldb/mocks"
-	workflowpkg "github.com/argoproj/argo-workflows/v3/pkg/apiclient/workflow"
-	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	"github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned"
-	v1alpha "github.com/argoproj/argo-workflows/v3/pkg/client/clientset/versioned/fake"
-	"github.com/argoproj/argo-workflows/v3/server/auth"
-	"github.com/argoproj/argo-workflows/v3/server/auth/types"
-	"github.com/argoproj/argo-workflows/v3/server/workflowarchive"
-	"github.com/argoproj/argo-workflows/v3/util"
-	"github.com/argoproj/argo-workflows/v3/util/instanceid"
-	"github.com/argoproj/argo-workflows/v3/workflow/common"
+	"github.com/argoproj/argo-workflows/v4/persist/sqldb"
+	"github.com/argoproj/argo-workflows/v4/persist/sqldb/mocks"
+	workflowpkg "github.com/argoproj/argo-workflows/v4/pkg/apiclient/workflow"
+	"github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/pkg/client/clientset/versioned"
+	v1alpha "github.com/argoproj/argo-workflows/v4/pkg/client/clientset/versioned/fake"
+	"github.com/argoproj/argo-workflows/v4/server/auth"
+	"github.com/argoproj/argo-workflows/v4/server/auth/types"
+	"github.com/argoproj/argo-workflows/v4/server/clusterworkflowtemplate"
+	sutils "github.com/argoproj/argo-workflows/v4/server/utils"
+	"github.com/argoproj/argo-workflows/v4/server/workflow/store"
+	"github.com/argoproj/argo-workflows/v4/server/workflowtemplate"
+	"github.com/argoproj/argo-workflows/v4/util"
+	"github.com/argoproj/argo-workflows/v4/util/instanceid"
+	"github.com/argoproj/argo-workflows/v4/util/logging"
+	"github.com/argoproj/argo-workflows/v4/workflow/artifactrepositories"
+	armocks "github.com/argoproj/argo-workflows/v4/workflow/artifactrepositories/mocks"
+	"github.com/argoproj/argo-workflows/v4/workflow/common"
+	"github.com/argoproj/argo-workflows/v4/workflow/creator"
 )
 
 const unlabelled = `{
@@ -136,14 +146,14 @@ const wf2 = `
         "namespace": "workflows",
         "resourceVersion": "52919656",
         "selfLink": "/apis/argoproj.io/v1alpha1/namespaces/workflows/workflows/hello-world-b6h5m",
-        "uid": "91066a6c-1ddc-11ea-b443-42010aa80075"
+        "uid": "91066a6c-1ddc-11ea-b443-42010aa80074"
     },
     "spec": {
-        
+
         "entrypoint": "whalesay",
         "templates": [
             {
-                
+
                 "container": {
                     "args": [
                         "hello world"
@@ -199,14 +209,14 @@ const wf3 = `
         "namespace": "test",
         "resourceVersion": "53020772",
         "selfLink": "/apis/argoproj.io/v1alpha1/namespaces/workflows/workflows/hello-world-9tql2",
-        "uid": "6522aff1-1e01-11ea-b443-42010aa80075"
+        "uid": "6522aff1-1e01-11ea-b443-42010aa80074"
     },
     "spec": {
-        
+
         "entrypoint": "whalesay",
         "templates": [
             {
-                
+
                 "container": {
                     "args": [
                         "hello world"
@@ -265,11 +275,11 @@ const wf4 = `
         "uid": "91066a6c-1ddc-11ea-b443-42010aa80075"
     },
     "spec": {
-        
+
         "entrypoint": "whalesay",
         "templates": [
             {
-                
+
                 "container": {
                     "args": [
                         "hello world"
@@ -325,14 +335,14 @@ const wf5 = `
         "namespace": "workflows",
         "resourceVersion": "53020772",
         "selfLink": "/apis/argoproj.io/v1alpha1/namespaces/workflows/workflows/hello-world-9tql2",
-        "uid": "6522aff1-1e01-11ea-b443-42010aa80075"
+        "uid": "6522aff1-1e01-11ea-b443-42010aa80073"
     },
     "spec": {
-        
+
         "entrypoint": "whalesay",
         "templates": [
             {
-                
+
                 "container": {
                     "args": [
                         "hello world"
@@ -488,7 +498,7 @@ const cronwf = `
 	"namespace": "workflows"
   },
   "spec": {
-    "schedule": "* * * * *",
+    "schedules": ["* * * * *"],
     "timezone": "America/Los_Angeles",
     "startingDeadlineSeconds": 0,
     "concurrencyPolicy": "Replace",
@@ -566,14 +576,16 @@ const clusterworkflowtmpl = `
 }
 `
 
-func getWorkflowServer() (workflowpkg.WorkflowServiceServer, context.Context) {
+const userEmailLabel = "my-sub.at.your.org"
+
+func getWorkflowServer(t *testing.T) (workflowpkg.WorkflowServiceServer, context.Context) {
+	t.Helper()
 	var unlabelledObj, wfObj1, wfObj2, wfObj3, wfObj4, wfObj5, failedWfObj v1alpha1.Workflow
 	var wftmpl v1alpha1.WorkflowTemplate
 	var cwfTmpl v1alpha1.ClusterWorkflowTemplate
 	var cronwfObj v1alpha1.CronWorkflow
 
 	v1alpha1.MustUnmarshal(unlabelled, &unlabelledObj)
-	v1alpha1.MustUnmarshal(wf1, &wfObj1)
 	v1alpha1.MustUnmarshal(wf1, &wfObj1)
 	v1alpha1.MustUnmarshal(wf2, &wfObj2)
 	v1alpha1.MustUnmarshal(wf3, &wfObj3)
@@ -590,8 +602,7 @@ func getWorkflowServer() (workflowpkg.WorkflowServiceServer, context.Context) {
 
 	archivedRepo := &mocks.WorkflowArchive{}
 
-	wfaServer := workflowarchive.NewWorkflowArchiveServer(archivedRepo)
-	archivedRepo.On("GetWorkflow", "", "test", "hello-world-9tql2-test").Return(&v1alpha1.Workflow{
+	archivedRepo.On("GetWorkflow", mock.Anything, "", "test", "hello-world-9tql2-test").Return(&v1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{Name: "hello-world-9tql2-test", Namespace: "test"},
 		Spec: v1alpha1.WorkflowSpec{
 			Entrypoint: "my-entrypoint",
@@ -600,15 +611,62 @@ func getWorkflowServer() (workflowpkg.WorkflowServiceServer, context.Context) {
 			},
 		},
 	}, nil)
-	archivedRepo.On("GetWorkflow", "", "test", "not-found").Return(nil, nil)
-	archivedRepo.On("GetWorkflow", "", "test", "unlabelled").Return(nil, nil)
-	archivedRepo.On("GetWorkflow", "", "workflows", "latest").Return(nil, nil)
-	archivedRepo.On("GetWorkflow", "", "workflows", "hello-world-9tql2-not").Return(nil, nil)
-	server := NewWorkflowServer(instanceid.NewService("my-instanceid"), offloadNodeStatusRepo, wfaServer)
-	kubeClientSet := fake.NewSimpleClientset()
-	wfClientset := v1alpha.NewSimpleClientset(&unlabelledObj, &wfObj1, &wfObj2, &wfObj3, &wfObj4, &wfObj5, &failedWfObj, &wftmpl, &cronwfObj, &cwfTmpl)
+	archivedRepo.On("GetWorkflow", mock.Anything, "", "test", "not-found").Return(nil, nil)
+	archivedRepo.On("GetWorkflow", mock.Anything, "", "test", "unlabelled").Return(nil, nil)
+	archivedRepo.On("GetWorkflow", mock.Anything, "", "workflows", "latest").Return(nil, nil)
+	archivedRepo.On("GetWorkflow", mock.Anything, "", "workflows", "hello-world-9tql2-not").Return(nil, nil)
+	// Mock for UID-based lookups on archive
+	archivedRepo.On("GetWorkflow", mock.Anything, "91066a6c-1ddc-11ea-b443-42010aa80099", "test", "hello-world-9tql2-test").Return(&v1alpha1.Workflow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "hello-world-9tql2-test",
+			Namespace: "test",
+			UID:       "91066a6c-1ddc-11ea-b443-42010aa80099",
+			Labels: map[string]string{
+				common.LabelKeyControllerInstanceID: "my-instanceid", // necessary to pass validation
+			},
+		},
+	}, nil)
+	r, err := labels.ParseToRequirements("workflows.argoproj.io/controller-instanceid=my-instanceid")
+	if err != nil {
+		panic(err)
+	}
+	archivedRepo.On("CountWorkflows", mock.Anything, sutils.ListOptions{Namespace: "workflows", LabelRequirements: r}).Return(int64(2), nil)
+	archivedRepo.On("ListWorkflows", mock.Anything, sutils.ListOptions{Namespace: "workflows", Limit: -2, LabelRequirements: r}).Return(v1alpha1.Workflows{wfObj2, failedWfObj}, nil)
+	archivedRepo.On("HasMoreWorkflows", mock.Anything, sutils.ListOptions{Namespace: "workflows", LabelRequirements: r}).Return(false, nil)
+	archivedRepo.On("CountWorkflows", mock.Anything, sutils.ListOptions{Namespace: "test", LabelRequirements: r}).Return(int64(1), nil)
+	archivedRepo.On("ListWorkflows", mock.Anything, sutils.ListOptions{Namespace: "test", Limit: -1, LabelRequirements: r}).Return(v1alpha1.Workflows{wfObj4}, nil)
+	archivedRepo.On("HasMoreWorkflows", mock.Anything, sutils.ListOptions{Namespace: "test", LabelRequirements: r}).Return(false, nil)
+
+	kubeClientSet := fake.NewClientset()
+	kubeClientSet.PrependReactor("create", "selfsubjectaccessreviews", func(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &authorizationv1.SelfSubjectAccessReview{
+			Status: authorizationv1.SubjectAccessReviewStatus{Allowed: true},
+		}, nil
+	})
+	wfClientset := v1alpha.NewClientset(&unlabelledObj, &wfObj1, &wfObj2, &wfObj3, &wfObj4, &wfObj5, &failedWfObj, &wftmpl, &cronwfObj, &cwfTmpl)
 	wfClientset.PrependReactor("create", "workflows", generateNameReactor)
-	ctx := context.WithValue(context.WithValue(context.WithValue(context.TODO(), auth.WfKey, wfClientset), auth.KubeKey, kubeClientSet), auth.ClaimsKey, &types.Claims{Claims: jwt.Claims{Subject: "my-sub"}})
+	ctx := logging.TestContext(t.Context())
+	ctx = context.WithValue(context.WithValue(context.WithValue(ctx, auth.WfKey, wfClientset), auth.KubeKey, kubeClientSet), auth.ClaimsKey, &types.Claims{Claims: jwt.Claims{Subject: "my-sub"}, Email: "my-sub@your.org"})
+	listOptions := &metav1.ListOptions{}
+	instanceIDSvc := instanceid.NewService("my-instanceid")
+	instanceIDSvc.With(listOptions)
+	wfStore, err := store.NewSQLiteStore(instanceIDSvc)
+	if err != nil {
+		panic(err)
+	}
+	if err = wfStore.Add(&wfObj1); err != nil {
+		panic(err)
+	}
+	if err = wfStore.Add(&wfObj3); err != nil {
+		panic(err)
+	}
+	if err = wfStore.Add(&wfObj5); err != nil {
+		panic(err)
+	}
+	namespaceAll := metav1.NamespaceAll
+	wftmplStore := workflowtemplate.NewClientStore()
+	cwftmplStore := clusterworkflowtemplate.NewClientStore()
+	server := NewServer(ctx, instanceIDSvc, offloadNodeStatusRepo, archivedRepo, wfClientset, wfStore, wfStore, wftmplStore, cwftmplStore, nil, &namespaceAll, nil)
 	return server, ctx
 }
 
@@ -631,15 +689,15 @@ func getWorkflowList(ctx context.Context, server workflowpkg.WorkflowServiceServ
 }
 
 func TestCreateWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	var req workflowpkg.WorkflowCreateRequest
 	v1alpha1.MustUnmarshal(workflow1, &req)
 	wf, err := server.CreateWorkflow(ctx, &req)
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wf)
-		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, wf)
+	assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+	assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+	assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyCreatorEmail])
 }
 
 type testWatchWorkflowServer struct {
@@ -650,28 +708,8 @@ func (t testWatchWorkflowServer) Send(*workflowpkg.WorkflowWatchEvent) error {
 	panic("implement me")
 }
 
-func TestMergeWithArchivedWorkflows(t *testing.T) {
-	timeNow := time.Now()
-	wf1Live := v1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{UID: "1", CreationTimestamp: metav1.Time{Time: timeNow.Add(time.Second)},
-			Labels: map[string]string{common.LabelKeyWorkflowArchivingStatus: "Archived"}}}
-	wf1Archived := v1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{UID: "1", CreationTimestamp: metav1.Time{Time: timeNow.Add(time.Second)},
-			Labels: map[string]string{common.LabelKeyWorkflowArchivingStatus: "Persisted"}}}
-	wf2 := v1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{UID: "2", CreationTimestamp: metav1.Time{Time: timeNow.Add(2 * time.Second)}}}
-	wf3 := v1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{UID: "3", CreationTimestamp: metav1.Time{Time: timeNow.Add(3 * time.Second)}}}
-	liveWfList := v1alpha1.WorkflowList{Items: []v1alpha1.Workflow{wf1Live, wf2}}
-	archivedWfList := v1alpha1.WorkflowList{Items: []v1alpha1.Workflow{wf1Archived, wf3, wf2}}
-	expectedWfList := v1alpha1.WorkflowList{Items: []v1alpha1.Workflow{wf3, wf2, wf1Live}}
-	expectedShortWfList := v1alpha1.WorkflowList{Items: []v1alpha1.Workflow{wf3, wf2}}
-	assert.Equal(t, expectedWfList.Items, mergeWithArchivedWorkflows(liveWfList, archivedWfList, 0).Items)
-	assert.Equal(t, expectedShortWfList.Items, mergeWithArchivedWorkflows(liveWfList, archivedWfList, 2).Items)
-}
-
 func TestWatchWorkflows(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	wf := &v1alpha1.Workflow{
 		Status: v1alpha1.WorkflowStatus{Phase: v1alpha1.WorkflowSucceeded},
 	}
@@ -685,7 +723,7 @@ func TestWatchWorkflows(t *testing.T) {
 }
 
 func TestWatchLatestWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	wf := &v1alpha1.Workflow{
 		Status: v1alpha1.WorkflowStatus{Phase: v1alpha1.WorkflowSucceeded},
 	}
@@ -703,118 +741,184 @@ func TestWatchLatestWorkflow(t *testing.T) {
 }
 
 func TestGetWorkflowWithNotFound(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	t.Run("Labelled", func(t *testing.T) {
 		wf, err := getWorkflow(ctx, server, "test", "not-found")
-		if assert.Error(t, err) {
-			assert.Nil(t, wf)
-		}
+		require.Error(t, err)
+		assert.Nil(t, wf)
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := getWorkflow(ctx, server, "test", "unlabelled")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
 func TestGetLatestWorkflow(t *testing.T) {
-	_, ctx := getWorkflowServer()
+	_, ctx := getWorkflowServer(t)
 	wfClient := ctx.Value(auth.WfKey).(versioned.Interface)
 	wf, err := getLatestWorkflow(ctx, wfClient, "test")
-	if assert.NoError(t, err) {
-		assert.Equal(t, wf.Name, "hello-world-9tql2-test")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "hello-world-9tql2-test", wf.Name)
 }
 
 func TestGetWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	s := server.(*workflowServer)
 	wfClient := auth.GetWfClient(ctx)
-	wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", metav1.GetOptions{})
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wf)
-	}
-	wf, err = s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", metav1.GetOptions{})
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wf)
-	}
+	wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.NotNil(t, wf)
+	wf, err = s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.NotNil(t, wf)
 }
 
 func TestValidateWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	s := server.(*workflowServer)
 	wfClient := auth.GetWfClient(ctx)
-	wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", metav1.GetOptions{})
-	if assert.NoError(t, err) {
-		assert.NoError(t, s.validateWorkflow(wf))
-	}
+	wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NoError(t, s.validateWorkflow(wf))
+}
+
+func TestGetWorkflowByUID(t *testing.T) {
+	server, ctx := getWorkflowServer(t)
+	s := server.(*workflowServer)
+	wfClient := auth.GetWfClient(ctx)
+
+	t.Run("GetWorkflowWithValidUID", func(t *testing.T) {
+		wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "6522aff1-1e01-11ea-b443-42010aa80074", metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Equal(t, "hello-world-9tql2-test", wf.Name)
+		assert.Equal(t, "6522aff1-1e01-11ea-b443-42010aa80074", string(wf.UID))
+	})
+
+	t.Run("GetWorkflowWithUIDMatchesClusterUID", func(t *testing.T) {
+		wfWithUID, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "6522aff1-1e01-11ea-b443-42010aa80074", metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.NotNil(t, wfWithUID)
+		wfWithoutUID, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "", metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.NotNil(t, wfWithoutUID)
+		assert.Equal(t, wfWithoutUID, wfWithUID)
+	})
+
+	t.Run("GetWorkflowWithMismatchedUID", func(t *testing.T) {
+		// The cluster has uid "6522aff1-1e01-11ea-b443-42010aa80074"
+		// archive has uid "91066a6c-1ddc-11ea-b443-42010aa80099"
+		wf, err := s.getWorkflow(ctx, wfClient, "test", "hello-world-9tql2-test", "91066a6c-1ddc-11ea-b443-42010aa80099", metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Equal(t, "91066a6c-1ddc-11ea-b443-42010aa80099", string(wf.UID))
+	})
+
+	t.Run("GetClusterWorkflowViaAPI", func(t *testing.T) {
+		// Test the full API with UID parameter
+		wf, err := server.GetWorkflow(ctx, &workflowpkg.WorkflowGetRequest{
+			Name:      "hello-world-9tql2-test",
+			Namespace: "test",
+			Uid:       "6522aff1-1e01-11ea-b443-42010aa80074",
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Equal(t, "hello-world-9tql2-test", wf.Name)
+		assert.Equal(t, "6522aff1-1e01-11ea-b443-42010aa80074", string(wf.UID))
+	})
+
+	t.Run("GetClusterWorkflowViaAPIWithoutUID", func(t *testing.T) {
+		// Test the full API without UID parameter
+		wf, err := server.GetWorkflow(ctx, &workflowpkg.WorkflowGetRequest{
+			Name:      "hello-world-9tql2-test",
+			Namespace: "test",
+			Uid:       "",
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Equal(t, "hello-world-9tql2-test", wf.Name)
+		assert.Equal(t, "6522aff1-1e01-11ea-b443-42010aa80074", string(wf.UID))
+	})
+
+	t.Run("GetArchivedWorkflowViaAPI", func(t *testing.T) {
+		wf, err := server.GetWorkflow(ctx, &workflowpkg.WorkflowGetRequest{
+			Name:      "hello-world-9tql2-test",
+			Namespace: "test",
+			Uid:       "91066a6c-1ddc-11ea-b443-42010aa80099",
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Equal(t, "91066a6c-1ddc-11ea-b443-42010aa80099", string(wf.UID))
+	})
 }
 
 func TestListWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	wfl, err := getWorkflowList(ctx, server, "workflows")
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wfl)
-		assert.Equal(t, 4, len(wfl.Items))
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, wfl)
+	assert.Len(t, wfl.Items, 4)
 	wfl, err = getWorkflowList(ctx, server, "test")
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wfl)
-		assert.Equal(t, 2, len(wfl.Items))
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, wfl)
+	assert.Len(t, wfl.Items, 2)
 }
 
 func TestDeleteWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	t.Run("Labelled", func(t *testing.T) {
 		delRsp, err := server.DeleteWorkflow(ctx, &workflowpkg.WorkflowDeleteRequest{Name: "hello-world-b6h5m", Namespace: "workflows"})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, delRsp)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, delRsp)
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := server.DeleteWorkflow(ctx, &workflowpkg.WorkflowDeleteRequest{Name: "unlabelled", Namespace: "workflows"})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Latest", func(t *testing.T) {
 		_, err := server.DeleteWorkflow(ctx, &workflowpkg.WorkflowDeleteRequest{Name: "@latest", Namespace: "workflows"})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
 func TestRetryWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	t.Run("Labelled", func(t *testing.T) {
 		retried, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "failed", Namespace: "workflows"})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, retried)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, retried)
+		assert.Equal(t, string(creator.ActionRetry), retried.Labels[common.LabelKeyAction])
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "unlabelled", Namespace: "workflows"})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Latest", func(t *testing.T) {
 		_, err := server.RetryWorkflow(ctx, &workflowpkg.WorkflowRetryRequest{Name: "latest", Namespace: "workflows"})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
 func TestSuspendResumeWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	wf, err := server.SuspendWorkflow(ctx, &workflowpkg.WorkflowSuspendRequest{Name: "hello-world-9tql2-run", Namespace: "workflows"})
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wf)
-		assert.Equal(t, true, *wf.Spec.Suspend)
-		wf, err = server.ResumeWorkflow(ctx, &workflowpkg.WorkflowResumeRequest{Name: wf.Name, Namespace: wf.Namespace})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, wf)
-			assert.Nil(t, wf.Spec.Suspend)
-		}
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, wf)
+	assert.True(t, *wf.Spec.Suspend)
+	assert.Contains(t, wf.Labels, common.LabelKeyActor)
+	assert.Equal(t, string(creator.ActionSuspend), wf.Labels[common.LabelKeyAction])
+	assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyActorEmail])
+	wf, err = server.ResumeWorkflow(ctx, &workflowpkg.WorkflowResumeRequest{Name: wf.Name, Namespace: wf.Namespace})
+	require.NoError(t, err)
+	assert.NotNil(t, wf)
+	assert.Contains(t, wf.Labels, common.LabelKeyActor)
+	assert.Equal(t, string(creator.ActionResume), wf.Labels[common.LabelKeyAction])
+	assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyActorEmail])
+	assert.Nil(t, wf.Spec.Suspend)
 }
 
 func TestSuspendResumeWorkflowWithNotFound(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 
 	susWfReq := workflowpkg.WorkflowSuspendRequest{
 		Name:      "hello-world-9tql2-not",
@@ -822,21 +926,21 @@ func TestSuspendResumeWorkflowWithNotFound(t *testing.T) {
 	}
 	wf, err := server.SuspendWorkflow(ctx, &susWfReq)
 	assert.Nil(t, wf)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 	rsmWfReq := workflowpkg.WorkflowResumeRequest{
 		Name:      "hello-world-9tql2-not",
 		Namespace: "workflows",
 	}
 	wf, err = server.ResumeWorkflow(ctx, &rsmWfReq)
 	assert.Nil(t, wf)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestTerminateWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 
 	wf, err := getWorkflow(ctx, server, "workflows", "hello-world-9tql2-run")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	rsmWfReq := workflowpkg.WorkflowTerminateRequest{
 		Name:      wf.Name,
 		Namespace: wf.Namespace,
@@ -844,7 +948,10 @@ func TestTerminateWorkflow(t *testing.T) {
 	wf, err = server.TerminateWorkflow(ctx, &rsmWfReq)
 	assert.NotNil(t, wf)
 	assert.Equal(t, v1alpha1.ShutdownStrategyTerminate, wf.Spec.Shutdown)
-	assert.Nil(t, err)
+	assert.Contains(t, wf.Labels, common.LabelKeyActor)
+	assert.Equal(t, string(creator.ActionTerminate), wf.Labels[common.LabelKeyAction])
+	assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyActorEmail])
+	require.NoError(t, err)
 
 	rsmWfReq = workflowpkg.WorkflowTerminateRequest{
 		Name:      "hello-world-9tql2-not",
@@ -852,51 +959,52 @@ func TestTerminateWorkflow(t *testing.T) {
 	}
 	wf, err = server.TerminateWorkflow(ctx, &rsmWfReq)
 	assert.Nil(t, wf)
-	assert.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestStopWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	wf, err := getWorkflow(ctx, server, "workflows", "hello-world-9tql2-run")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	rsmWfReq := workflowpkg.WorkflowStopRequest{Name: wf.Name, Namespace: wf.Namespace}
 	wf, err = server.StopWorkflow(ctx, &rsmWfReq)
-	if assert.NoError(t, err) {
-		assert.NotNil(t, wf)
-		assert.Equal(t, v1alpha1.WorkflowRunning, wf.Status.Phase)
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, wf)
+	assert.Equal(t, v1alpha1.WorkflowRunning, wf.Status.Phase)
+	assert.Contains(t, wf.Labels, common.LabelKeyActor)
+	assert.Equal(t, string(creator.ActionStop), wf.Labels[common.LabelKeyAction])
+	assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyActorEmail])
 }
 
 func TestResubmitWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	t.Run("Labelled", func(t *testing.T) {
 		wf, err := server.ResubmitWorkflow(ctx, &workflowpkg.WorkflowResubmitRequest{Name: "hello-world-9tql2", Namespace: "workflows"})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, wf)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyCreatorEmail])
 	})
 	t.Run("Unlabelled", func(t *testing.T) {
 		_, err := server.ResubmitWorkflow(ctx, &workflowpkg.WorkflowResubmitRequest{Name: "unlabelled", Namespace: "workflows"})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Latest", func(t *testing.T) {
 		wf, err := server.ResubmitWorkflow(ctx, &workflowpkg.WorkflowResubmitRequest{Name: "@latest", Namespace: "workflows"})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, wf)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
 	})
 }
 
 func TestLintWorkflow(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	wf := &v1alpha1.Workflow{}
 	v1alpha1.MustUnmarshal(unlabelled, &wf)
 	linted, err := server.LintWorkflow(ctx, &workflowpkg.WorkflowLintRequest{Workflow: wf})
-	if assert.NoError(t, err) {
-		assert.NotNil(t, linted)
-		assert.Contains(t, linted.Labels, common.LabelKeyControllerInstanceID)
-		assert.Contains(t, linted.Labels, common.LabelKeyCreator)
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, linted)
+	assert.Contains(t, linted.Labels, common.LabelKeyControllerInstanceID)
+	assert.Contains(t, linted.Labels, common.LabelKeyCreator)
 }
 
 type testPodLogsServer struct {
@@ -908,7 +1016,7 @@ func (t testPodLogsServer) Send(*workflowpkg.LogEntry) error {
 }
 
 func TestPodLogs(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	ctx, cancel := context.WithCancel(ctx)
 	go func() {
 		err := server.PodLogs(&workflowpkg.WorkflowLogRequest{
@@ -922,14 +1030,14 @@ func TestPodLogs(t *testing.T) {
 }
 
 func TestSubmitWorkflowFromResource(t *testing.T) {
-	server, ctx := getWorkflowServer()
+	server, ctx := getWorkflowServer(t)
 	t.Run("SubmitFromWorkflowTemplate fails if missing parameters", func(t *testing.T) {
 		_, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
 			Namespace:    "workflows",
 			ResourceKind: "workflowtemplate",
 			ResourceName: "workflow-template-whalesay-template",
 		})
-		assert.EqualError(t, err, "rpc error: code = InvalidArgument desc = spec.arguments.message.value is required")
+		require.EqualError(t, err, "rpc error: code = InvalidArgument desc = spec.arguments.message.value or spec.arguments.message.valueFrom is required")
 	})
 	t.Run("SubmitFromWorkflowTemplate", func(t *testing.T) {
 		opts := v1alpha1.SubmitOpts{
@@ -943,11 +1051,11 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceName:  "workflow-template-whalesay-template",
 			SubmitOptions: &opts,
 		})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, wf)
-			assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-			assert.Contains(t, wf.Labels, common.LabelKeyCreator)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyCreatorEmail])
 	})
 	t.Run("SubmitFromCronWorkflow", func(t *testing.T) {
 		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
@@ -955,11 +1063,11 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceKind: "cronworkflow",
 			ResourceName: "hello-world",
 		})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, wf)
-			assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-			assert.Contains(t, wf.Labels, common.LabelKeyCreator)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyCreatorEmail])
 	})
 	t.Run("SubmitFromClusterWorkflowTemplate", func(t *testing.T) {
 		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
@@ -967,10 +1075,464 @@ func TestSubmitWorkflowFromResource(t *testing.T) {
 			ResourceKind: "ClusterWorkflowTemplate",
 			ResourceName: "cluster-workflow-template-whalesay-template",
 		})
-		if assert.NoError(t, err) {
-			assert.NotNil(t, wf)
-			assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
-			assert.Contains(t, wf.Labels, common.LabelKeyCreator)
-		}
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+		assert.Contains(t, wf.Labels, common.LabelKeyControllerInstanceID)
+		assert.Contains(t, wf.Labels, common.LabelKeyCreator)
+		assert.Equal(t, userEmailLabel, wf.Labels[common.LabelKeyCreatorEmail])
 	})
+}
+
+// TestSubmitWorkflowWithArtifactOverride tests artifact override functionality during workflow submission
+func TestSubmitWorkflowWithArtifactOverride(t *testing.T) {
+	// WorkflowTemplate with artifact in arguments (has full location)
+	wftWithArtifact := &v1alpha1.WorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-ns",
+			Name:      "wft-with-artifact",
+			Labels:    map[string]string{common.LabelKeyControllerInstanceID: "my-instanceid"},
+		},
+		Spec: v1alpha1.WorkflowSpec{
+			Entrypoint: "main",
+			Arguments: v1alpha1.Arguments{
+				Artifacts: []v1alpha1.Artifact{
+					{
+						Name: "input-artifact",
+						ArtifactLocation: v1alpha1.ArtifactLocation{
+							S3: &v1alpha1.S3Artifact{
+								S3Bucket: v1alpha1.S3Bucket{
+									Endpoint: "s3.amazonaws.com",
+									Bucket:   "my-bucket",
+								},
+								Key: "original/key.zip",
+							},
+						},
+					},
+				},
+			},
+			Templates: []v1alpha1.Template{
+				{
+					Name: "main",
+					Container: &corev1.Container{
+						Image:   "alpine",
+						Command: []string{"cat"},
+						Args:    []string{"/tmp/input"},
+					},
+					Inputs: v1alpha1.Inputs{
+						Artifacts: v1alpha1.Artifacts{
+							{
+								Name: "input-artifact",
+								Path: "/tmp/input",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// WorkflowTemplate without location (relies on default repository)
+	wftNoLocation := &v1alpha1.WorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-ns",
+			Name:      "wft-no-location",
+			Labels:    map[string]string{common.LabelKeyControllerInstanceID: "my-instanceid"},
+		},
+		Spec: v1alpha1.WorkflowSpec{
+			Entrypoint: "main",
+			Arguments: v1alpha1.Arguments{
+				Artifacts: []v1alpha1.Artifact{
+					{
+						Name: "input-artifact",
+						// No ArtifactLocation - relies on default repository
+					},
+				},
+			},
+			Templates: []v1alpha1.Template{
+				{
+					Name: "main",
+					Container: &corev1.Container{
+						Image:   "alpine",
+						Command: []string{"cat"},
+						Args:    []string{"/tmp/input"},
+					},
+					Inputs: v1alpha1.Inputs{
+						Artifacts: v1alpha1.Artifacts{
+							{
+								Name: "input-artifact",
+								Path: "/tmp/input",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("Override artifact key with full location in template", func(t *testing.T) {
+		server, ctx := getWorkflowServerWithArtifacts(t, wftWithArtifact, nil)
+
+		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+			Namespace:    "test-ns",
+			ResourceKind: "WorkflowTemplate",
+			ResourceName: "wft-with-artifact",
+			SubmitOptions: &v1alpha1.SubmitOpts{
+				Artifacts: []string{"input-artifact=uploads/test-ns/12345678-1234-4234-8234-123456789012/uploaded-file.zip"},
+			},
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+
+		// Verify artifact key was overridden
+		require.Len(t, wf.Spec.Arguments.Artifacts, 1)
+		key, err := wf.Spec.Arguments.Artifacts[0].GetKey()
+		require.NoError(t, err)
+		assert.Equal(t, "uploads/test-ns/12345678-1234-4234-8234-123456789012/uploaded-file.zip", key)
+
+		// Verify original location settings are preserved
+		assert.Equal(t, "s3.amazonaws.com", wf.Spec.Arguments.Artifacts[0].S3.Endpoint)
+		assert.Equal(t, "my-bucket", wf.Spec.Arguments.Artifacts[0].S3.Bucket)
+	})
+
+	t.Run("Override artifact key with default repository resolution", func(t *testing.T) {
+		artifactRepo := &v1alpha1.ArtifactRepository{
+			S3: &v1alpha1.S3ArtifactRepository{
+				S3Bucket: v1alpha1.S3Bucket{
+					Endpoint: "default-endpoint",
+					Bucket:   "default-bucket",
+				},
+			},
+		}
+		server, ctx := getWorkflowServerWithArtifacts(t, wftNoLocation, artifactRepo)
+
+		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+			Namespace:    "test-ns",
+			ResourceKind: "WorkflowTemplate",
+			ResourceName: "wft-no-location",
+			SubmitOptions: &v1alpha1.SubmitOpts{
+				Artifacts: []string{"input-artifact=uploads/test-ns/87654321-4321-4321-8321-210987654321/uploaded-file.zip"},
+			},
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+
+		// Verify artifact key was overridden
+		require.Len(t, wf.Spec.Arguments.Artifacts, 1)
+		key, err := wf.Spec.Arguments.Artifacts[0].GetKey()
+		require.NoError(t, err)
+		assert.Equal(t, "uploads/test-ns/87654321-4321-4321-8321-210987654321/uploaded-file.zip", key)
+
+		// Verify location was resolved from default repository
+		assert.Equal(t, "default-endpoint", wf.Spec.Arguments.Artifacts[0].S3.Endpoint)
+		assert.Equal(t, "default-bucket", wf.Spec.Arguments.Artifacts[0].S3.Bucket)
+	})
+
+	t.Run("Submit without artifact override", func(t *testing.T) {
+		server, ctx := getWorkflowServerWithArtifacts(t, wftWithArtifact, nil)
+
+		wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+			Namespace:    "test-ns",
+			ResourceKind: "WorkflowTemplate",
+			ResourceName: "wft-with-artifact",
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, wf)
+
+		// Artifact override processing should not happen - artifacts will be empty
+		// because workflowTemplateRef is used and no override was provided
+		assert.Empty(t, wf.Spec.Arguments.Artifacts)
+	})
+
+	for name, key := range map[string]string{
+		"traversal":               "uploads/test-ns/12345678-1234-4234-8234-123456789012/../../../etc/passwd",
+		"wrong namespace":         "uploads/other-ns/12345678-1234-4234-8234-123456789012/file.zip",
+		"bad uuid segment":        "uploads/test-ns/not-a-uuid/file.zip",
+		"missing uploads/ prefix": "some/other/key/file.zip",
+	} {
+		t.Run("Reject override with "+name, func(t *testing.T) {
+			server, ctx := getWorkflowServerWithArtifacts(t, wftWithArtifact, nil)
+
+			_, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+				Namespace:    "test-ns",
+				ResourceKind: "WorkflowTemplate",
+				ResourceName: "wft-with-artifact",
+				SubmitOptions: &v1alpha1.SubmitOpts{
+					Artifacts: []string{"input-artifact=" + key},
+				},
+			})
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		})
+	}
+}
+
+// TestSubmitWorkflowWithArtifactOverride_ClusterScope tests that submitting a workflow
+// from a ClusterWorkflowTemplate resolves the template artifacts via the cluster-scoped
+// client (not the namespace-scoped one) and applies the override the same way.
+func TestSubmitWorkflowWithArtifactOverride_ClusterScope(t *testing.T) {
+	cwftWithArtifact := &v1alpha1.ClusterWorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "cwft-with-artifact",
+			Labels: map[string]string{common.LabelKeyControllerInstanceID: "my-instanceid"},
+		},
+		Spec: v1alpha1.WorkflowSpec{
+			Entrypoint: "main",
+			Arguments: v1alpha1.Arguments{
+				Artifacts: []v1alpha1.Artifact{
+					{
+						Name: "input-artifact",
+						ArtifactLocation: v1alpha1.ArtifactLocation{
+							S3: &v1alpha1.S3Artifact{
+								S3Bucket: v1alpha1.S3Bucket{
+									Endpoint: "s3.amazonaws.com",
+									Bucket:   "my-bucket",
+								},
+								Key: "original/key.zip",
+							},
+						},
+					},
+				},
+			},
+			Templates: []v1alpha1.Template{
+				{
+					Name: "main",
+					Container: &corev1.Container{
+						Image:   "alpine",
+						Command: []string{"cat"},
+						Args:    []string{"/tmp/input"},
+					},
+					Inputs: v1alpha1.Inputs{
+						Artifacts: v1alpha1.Artifacts{
+							{Name: "input-artifact", Path: "/tmp/input"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	server, ctx := getWorkflowServerWithArtifacts(t, cwftWithArtifact, nil)
+
+	wf, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+		Namespace:    "test-ns",
+		ResourceKind: "ClusterWorkflowTemplate",
+		ResourceName: "cwft-with-artifact",
+		SubmitOptions: &v1alpha1.SubmitOpts{
+			Artifacts: []string{"input-artifact=uploads/test-ns/12345678-1234-4234-8234-123456789012/uploaded-file.zip"},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, wf)
+
+	// Cluster-scoped template artifact should be copied into the workflow with its key overridden
+	// and its non-key S3 location fields (endpoint, bucket) preserved.
+	require.Len(t, wf.Spec.Arguments.Artifacts, 1)
+	key, err := wf.Spec.Arguments.Artifacts[0].GetKey()
+	require.NoError(t, err)
+	assert.Equal(t, "uploads/test-ns/12345678-1234-4234-8234-123456789012/uploaded-file.zip", key)
+	assert.Equal(t, "s3.amazonaws.com", wf.Spec.Arguments.Artifacts[0].S3.Endpoint)
+	assert.Equal(t, "my-bucket", wf.Spec.Arguments.Artifacts[0].S3.Bucket)
+}
+
+// TestSubmitWorkflowWithArtifactOverride_MalformedOverride tests that malformed
+// SubmitOpts.Artifacts entries (missing `=`, empty name, empty key) are rejected
+// with codes.InvalidArgument by the ParseArtifactOverrides fail-fast semantics.
+func TestSubmitWorkflowWithArtifactOverride_MalformedOverride(t *testing.T) {
+	wftWithArtifact := &v1alpha1.WorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-ns",
+			Name:      "wft-with-artifact",
+			Labels:    map[string]string{common.LabelKeyControllerInstanceID: "my-instanceid"},
+		},
+		Spec: v1alpha1.WorkflowSpec{
+			Entrypoint: "main",
+			Arguments: v1alpha1.Arguments{
+				Artifacts: []v1alpha1.Artifact{
+					{
+						Name: "input-artifact",
+						ArtifactLocation: v1alpha1.ArtifactLocation{
+							S3: &v1alpha1.S3Artifact{
+								S3Bucket: v1alpha1.S3Bucket{Endpoint: "s3.amazonaws.com", Bucket: "my-bucket"},
+								Key:      "original/key.zip",
+							},
+						},
+					},
+				},
+			},
+			Templates: []v1alpha1.Template{
+				{
+					Name:      "main",
+					Container: &corev1.Container{Image: "alpine", Command: []string{"cat"}, Args: []string{"/tmp/input"}},
+					Inputs:    v1alpha1.Inputs{Artifacts: v1alpha1.Artifacts{{Name: "input-artifact", Path: "/tmp/input"}}},
+				},
+			},
+		},
+	}
+
+	// Each entry is a single malformed value that should trip ParseArtifactOverrides fail-fast.
+	for name, override := range map[string]string{
+		"no equals sign": "input-artifact",
+		"empty name":     "=uploads/test-ns/12345678-1234-4234-8234-123456789012/file.zip",
+		"empty key":      "input-artifact=",
+	} {
+		t.Run(name, func(t *testing.T) {
+			server, ctx := getWorkflowServerWithArtifacts(t, wftWithArtifact, nil)
+
+			_, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+				Namespace:    "test-ns",
+				ResourceKind: "WorkflowTemplate",
+				ResourceName: "wft-with-artifact",
+				SubmitOptions: &v1alpha1.SubmitOpts{
+					Artifacts: []string{override},
+				},
+			})
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		})
+	}
+}
+
+// TestSubmitWorkflowWithArtifactOverride_OtherInstanceRejected tests that the artifact-override
+// path does not copy artifact config from a WorkflowTemplate managed by a different Argo Server
+// instance. The override branch Gets the template via the raw client, bypassing the
+// instance-ID-filtered store, so it must enforce the instance-ID boundary itself and return
+// NotFound for a template labeled with another instance ID.
+func TestSubmitWorkflowWithArtifactOverride_OtherInstanceRejected(t *testing.T) {
+	wftOtherInstance := &v1alpha1.WorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-ns",
+			Name:      "wft-with-artifact",
+			Labels:    map[string]string{common.LabelKeyControllerInstanceID: "other-instanceid"},
+		},
+		Spec: v1alpha1.WorkflowSpec{
+			Entrypoint: "main",
+			Arguments: v1alpha1.Arguments{
+				Artifacts: []v1alpha1.Artifact{
+					{
+						Name: "input-artifact",
+						ArtifactLocation: v1alpha1.ArtifactLocation{
+							S3: &v1alpha1.S3Artifact{
+								S3Bucket: v1alpha1.S3Bucket{Endpoint: "s3.amazonaws.com", Bucket: "other-bucket"},
+								Key:      "original/key.zip",
+							},
+						},
+					},
+				},
+			},
+			Templates: []v1alpha1.Template{
+				{
+					Name:      "main",
+					Container: &corev1.Container{Image: "alpine", Command: []string{"cat"}, Args: []string{"/tmp/input"}},
+					Inputs:    v1alpha1.Inputs{Artifacts: v1alpha1.Artifacts{{Name: "input-artifact", Path: "/tmp/input"}}},
+				},
+			},
+		},
+	}
+
+	server, ctx := getWorkflowServerWithArtifacts(t, wftOtherInstance, nil)
+
+	_, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+		Namespace:    "test-ns",
+		ResourceKind: "WorkflowTemplate",
+		ResourceName: "wft-with-artifact",
+		SubmitOptions: &v1alpha1.SubmitOpts{
+			Artifacts: []string{"input-artifact=uploads/test-ns/12345678-1234-4234-8234-123456789012/uploaded-file.zip"},
+		},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+// TestSubmitWorkflowWithArtifactOverride_UnmatchedRejected tests that an override whose
+// name matches no template artifact is rejected with InvalidArgument instead of being
+// silently dropped (which would run the workflow with the template's default key after the
+// UI reported the upload as successful).
+func TestSubmitWorkflowWithArtifactOverride_UnmatchedRejected(t *testing.T) {
+	wftWithArtifact := &v1alpha1.WorkflowTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "test-ns",
+			Name:      "wft-with-artifact",
+			Labels:    map[string]string{common.LabelKeyControllerInstanceID: "my-instanceid"},
+		},
+		Spec: v1alpha1.WorkflowSpec{
+			Entrypoint: "main",
+			Arguments: v1alpha1.Arguments{
+				Artifacts: []v1alpha1.Artifact{
+					{
+						Name: "input-artifact",
+						ArtifactLocation: v1alpha1.ArtifactLocation{
+							S3: &v1alpha1.S3Artifact{
+								S3Bucket: v1alpha1.S3Bucket{Endpoint: "s3.amazonaws.com", Bucket: "my-bucket"},
+								Key:      "original/key.zip",
+							},
+						},
+					},
+				},
+			},
+			Templates: []v1alpha1.Template{
+				{
+					Name:      "main",
+					Container: &corev1.Container{Image: "alpine", Command: []string{"cat"}, Args: []string{"/tmp/input"}},
+					Inputs:    v1alpha1.Inputs{Artifacts: v1alpha1.Artifacts{{Name: "input-artifact", Path: "/tmp/input"}}},
+				},
+			},
+		},
+	}
+
+	server, ctx := getWorkflowServerWithArtifacts(t, wftWithArtifact, nil)
+
+	_, err := server.SubmitWorkflow(ctx, &workflowpkg.WorkflowSubmitRequest{
+		Namespace:    "test-ns",
+		ResourceKind: "WorkflowTemplate",
+		ResourceName: "wft-with-artifact",
+		SubmitOptions: &v1alpha1.SubmitOpts{
+			Artifacts: []string{"wrong-name=uploads/test-ns/12345678-1234-4234-8234-123456789012/uploaded-file.zip"},
+		},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// getWorkflowServerWithArtifacts creates a workflow server with artifact support for testing.
+// Pass either a *v1alpha1.WorkflowTemplate or *v1alpha1.ClusterWorkflowTemplate (or both)
+// so the same helper can back namespaced- and cluster-scoped tests.
+func getWorkflowServerWithArtifacts(t *testing.T, template runtime.Object, defaultRepo *v1alpha1.ArtifactRepository) (workflowpkg.WorkflowServiceServer, context.Context) {
+	t.Helper()
+
+	offloadNodeStatusRepo := &mocks.OffloadNodeStatusRepo{}
+	offloadNodeStatusRepo.On("IsEnabled", mock.Anything).Return(true)
+	offloadNodeStatusRepo.On("List", mock.Anything).Return(map[sqldb.UUIDVersion]v1alpha1.Nodes{}, nil)
+
+	archivedRepo := &mocks.WorkflowArchive{}
+
+	kubeClientSet := fake.NewSimpleClientset()
+	kubeClientSet.PrependReactor("create", "selfsubjectaccessreviews", func(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, &authorizationv1.SelfSubjectAccessReview{
+			Status: authorizationv1.SubjectAccessReviewStatus{Allowed: true},
+		}, nil
+	})
+
+	wfClientset := v1alpha.NewClientset(template)
+	wfClientset.PrependReactor("create", "workflows", generateNameReactor)
+
+	ctx := logging.TestContext(t.Context())
+	ctx = context.WithValue(ctx, auth.WfKey, wfClientset)
+	ctx = context.WithValue(ctx, auth.KubeKey, kubeClientSet)
+	ctx = context.WithValue(ctx, auth.ClaimsKey, &types.Claims{Claims: jwt.Claims{Subject: "my-sub"}})
+
+	wfStore, err := store.NewSQLiteStore(instanceid.NewService("my-instanceid"))
+	require.NoError(t, err)
+
+	wftmplStore := workflowtemplate.NewClientStore()
+	cwftmplStore := clusterworkflowtemplate.NewClientStore()
+
+	var artifactRepos artifactrepositories.Interface
+	if defaultRepo != nil {
+		artifactRepos = armocks.DummyArtifactRepositories(defaultRepo)
+	}
+
+	namespaceAll := metav1.NamespaceAll
+	server := NewServer(ctx, instanceid.NewService("my-instanceid"), offloadNodeStatusRepo, archivedRepo, wfClientset, wfStore, wfStore, wftmplStore, cwftmplStore, nil, &namespaceAll, artifactRepos)
+
+	return server, ctx
 }

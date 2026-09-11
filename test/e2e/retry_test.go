@@ -1,9 +1,9 @@
 //go:build functional
-// +build functional
 
 package e2e
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -12,9 +12,8 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
-	"github.com/argoproj/argo-workflows/v3/test/e2e/fixtures"
+	"github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/test/e2e/fixtures"
 )
 
 type RetryTestSuite struct {
@@ -45,8 +44,8 @@ spec:
 		SubmitWorkflow().
 		WaitForWorkflow(fixtures.ToBeFailed).
 		Then().
-		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
-			assert.Equal(t, wfv1.WorkflowPhase("Failed"), status.Phase)
+		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
+			assert.Equal(t, v1alpha1.WorkflowPhase("Failed"), status.Phase)
 			assert.Equal(t, "No more retries left", status.Message)
 			assert.Equal(t, v1alpha1.Progress("0/1"), status.Progress)
 		}).
@@ -61,7 +60,7 @@ spec:
 			return status.Name == "test-retry-limit(0)"
 		}, func(t *testing.T, status *v1alpha1.NodeStatus, pod *apiv1.Pod) {
 			assert.Equal(t, v1alpha1.NodeFailed, status.Phase)
-			assert.Equal(t, true, status.NodeFlag.Retried)
+			assert.True(t, status.NodeFlag.Retried)
 		})
 }
 
@@ -88,8 +87,8 @@ spec:
 		SubmitWorkflow().
 		WaitForWorkflow(time.Second * 90).
 		Then().
-		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
-			assert.Equal(t, wfv1.WorkflowPhase("Failed"), status.Phase)
+		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
+			assert.Equal(t, v1alpha1.WorkflowPhase("Failed"), status.Phase)
 			assert.LessOrEqual(t, len(status.Nodes), 10)
 		})
 	s.Given().
@@ -114,9 +113,87 @@ spec:
 		SubmitWorkflow().
 		WaitForWorkflow(time.Second * 90).
 		Then().
-		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *wfv1.WorkflowStatus) {
-			assert.Equal(t, wfv1.WorkflowPhase("Failed"), status.Phase)
+		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
+			assert.Equal(t, v1alpha1.WorkflowPhase("Failed"), status.Phase)
 			assert.LessOrEqual(t, len(status.Nodes), 10)
+		})
+}
+
+func (s *RetryTestSuite) TestWorkflowTemplateWithRetryStrategyInContainerSet() {
+	s.Given().
+		WorkflowTemplate("@testdata/workflow-template-with-containerset.yaml").
+		Workflow(`
+metadata:
+  name: workflow-template-containerset
+spec:
+  workflowTemplateRef:
+    name: containerset-with-retrystrategy
+`).
+		When().
+		CreateWorkflowTemplates().
+		SubmitWorkflow().
+		WaitForWorkflow(fixtures.ToBeFailed).
+		Then().
+		ExpectWorkflow(func(t *testing.T, metadata *metav1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
+			assert.Equal(t, v1alpha1.WorkflowFailed, status.Phase)
+		}).
+		// Success, no need retry
+		ExpectContainerLogs("c1", func(t *testing.T, logs string) {
+			count := strings.Count(logs, "capturing logs")
+			assert.Equal(t, 1, count)
+			assert.Contains(t, logs, "hi")
+		}).
+		// Command err. No retry logic is entered.
+		ExpectContainerLogs("c2", func(t *testing.T, logs string) {
+			count := strings.Count(logs, "capturing logs")
+			assert.Equal(t, 0, count)
+			assert.Contains(t, logs, "executable file not found in $PATH")
+		}).
+		// Retry when err.
+		ExpectContainerLogs("c3", func(t *testing.T, logs string) {
+			count := strings.Count(logs, "capturing logs")
+			assert.Equal(t, 2, count)
+			countFailureInfo := strings.Count(logs, "intentional failure")
+			assert.Equal(t, 2, countFailureInfo)
+		})
+}
+
+func (s *RetryTestSuite) TestRetryNodeAntiAffinity() {
+	s.Given().
+		Workflow(`
+metadata:
+  name: test-nodeantiaffinity-strategy
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      retryStrategy:
+        limit: '1'
+        retryPolicy: "Always"
+        affinity:
+          nodeAntiAffinity: {}
+      container:
+          name: main
+          image: 'argoproj/argosay:v2'
+          args: [ exit, "1" ]
+`).
+		When().
+		SubmitWorkflow().
+		WaitForWorkflow(fixtures.ToHaveFailedPod).
+		Wait(5 * time.Second).
+		Then().
+		ExpectWorkflow(func(t *testing.T, _ *metav1.ObjectMeta, status *v1alpha1.WorkflowStatus) {
+			if status.Phase == v1alpha1.WorkflowFailed {
+				nodeStatus := status.Nodes.FindByDisplayName("test-nodeantiaffinity-strategy(0)")
+				nodeStatusRetry := status.Nodes.FindByDisplayName("test-nodeantiaffinity-strategy(1)")
+				assert.NotEqual(t, nodeStatus.HostNodeName, nodeStatusRetry.HostNodeName)
+			}
+			if status.Phase == v1alpha1.WorkflowRunning {
+				nodeStatus := status.Nodes.FindByDisplayName("test-nodeantiaffinity-strategy(0)")
+				nodeStatusRetry := status.Nodes.FindByDisplayName("test-nodeantiaffinity-strategy(1)")
+				assert.Contains(t, nodeStatusRetry.Message, "didn't match Pod's node affinity/selector")
+				assert.NotEqual(t, nodeStatus.HostNodeName, nodeStatusRetry.HostNodeName)
+			}
 		})
 }
 

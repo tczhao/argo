@@ -1,10 +1,12 @@
-# This example demonstrates daemoned steps when used in in DAG templates. It is is equivalent to the
+# This example demonstrates daemoned steps when used in in DAG templates. It is equivalent to the
 # daemon-step.yaml example, but written in DAG format. The IP address of the daemoned step can be
 # referenced using the '{{tasks.taskname.ip}}' variable.
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: dag-daemon-task-
+  labels:
+    workflows.argoproj.io/no-test: "duration"
 spec:
   entrypoint: daemon-example
   templates:
@@ -68,6 +70,6 @@ spec:
       parameters:
       - name: cmd
     container:
-      image: appropriate/curl:latest
+      image: curlimages/curl:latest
       command: ["sh", "-c"]
       args: ["{{inputs.parameters.cmd}}"]

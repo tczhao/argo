@@ -6,13 +6,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/argoproj/argo-workflows/v3/errors"
+	"github.com/argoproj/argo-workflows/v4/errors"
 )
 
 // TestErrorf tests the initializer of error package
 func TestErrorf(t *testing.T) {
 	err := errors.Errorf(errors.CodeInternal, "test internal")
-	assert.Equal(t, err.Error(), "test internal")
+	assert.Equal(t, "test internal", err.Error())
 }
 
 // TestWrap ensures we can wrap an error and use Cause() to retrieve the original error

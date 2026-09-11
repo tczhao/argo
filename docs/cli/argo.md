@@ -57,7 +57,7 @@ Use the same configuration as GRPC mode, but also set:
 
 	ARGO_HTTP1=true
 
-If your server is behind an ingress with a path (you'll be running "argo server --basehref /...) or "BASE_HREF=/... argo server"):
+If your server is behind an ingress with a path (running "argo server --base-href /argo" or "ARGO_BASE_HREF=/argo argo server"):
 
 	ARGO_BASE_HREF=/argo
 
@@ -69,7 +69,7 @@ argo [flags]
 ### Options
 
 ```
-      --argo-base-href string          An path to use with HTTP client (e.g. due to BASE_HREF). Defaults to the ARGO_BASE_HREF environment variable.
+      --argo-base-href string          Path to use with HTTP client due to Base HREF. Defaults to the ARGO_BASE_HREF environment variable.
       --argo-http1                     If true, use the HTTP client. Defaults to the ARGO_HTTP1 environment variable.
   -s, --argo-server host:port          API server host:port. e.g. localhost:2746. Defaults to the ARGO_SERVER environment variable.
       --as string                      Username to impersonate for the operation
@@ -80,6 +80,7 @@ argo [flags]
       --client-key string              Path to a client key file for TLS
       --cluster string                 The name of the kubeconfig cluster to use
       --context string                 The name of the kubeconfig context to use
+      --disable-compression            If true, opt-out of response compression for all requests to the server
       --gloglevel int                  Set the glog logging level
   -H, --header strings                 Sets additional header to all requests made by Argo CLI. (Can be repeated multiple times to add multiple headers, also supports comma separated headers) Used only when either ARGO_HTTP1 or --argo-http1 is set to true.
   -h, --help                           help for argo
@@ -87,6 +88,7 @@ argo [flags]
   -k, --insecure-skip-verify           If true, the Argo Server's certificate will not be checked for validity. This will make your HTTPS connections insecure. Defaults to the ARGO_INSECURE_SKIP_VERIFY environment variable.
       --instanceid string              submit with a specific controller's instance id label. Default to the ARGO_INSTANCEID environment variable.
       --kubeconfig string              Path to a kube config. Only required if out-of-cluster
+      --log-format string              The formatter to use for logs. One of: text|json (default "text")
       --loglevel string                Set the logging level. One of: debug|info|warn|error (default "info")
   -n, --namespace string               If present, the namespace scope for this CLI request
       --password string                Password for basic authentication to the API server
@@ -106,7 +108,8 @@ argo [flags]
 * [argo archive](argo_archive.md)	 - manage the workflow archive
 * [argo auth](argo_auth.md)	 - manage authentication settings
 * [argo cluster-template](argo_cluster-template.md)	 - manipulate cluster workflow templates
-* [argo completion](argo_completion.md)	 - output shell completion code for the specified shell (bash or zsh)
+* [argo completion](argo_completion.md)	 - output shell completion code for the specified shell (bash, zsh or fish)
+* [argo convert](argo_convert.md)	 - convert workflow manifests from legacy format to current format
 * [argo cp](argo_cp.md)	 - copy artifacts from workflow
 * [argo cron](argo_cron.md)	 - manage cron workflows
 * [argo delete](argo_delete.md)	 - delete workflows
@@ -123,6 +126,7 @@ argo [flags]
 * [argo stop](argo_stop.md)	 - stop zero or more workflows allowing all exit handlers to run
 * [argo submit](argo_submit.md)	 - submit a workflow
 * [argo suspend](argo_suspend.md)	 - suspend zero or more workflows (opposite of resume)
+* [argo sync](argo_sync.md)	 - manage sync limits
 * [argo template](argo_template.md)	 - manipulate workflow templates
 * [argo terminate](argo_terminate.md)	 - terminate zero or more workflows immediately
 * [argo version](argo_version.md)	 - print version information

@@ -1,18 +1,18 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/argoproj/argo-workflows/v3/cmd/argo/commands/common"
-	workflowpkg "github.com/argoproj/argo-workflows/v3/pkg/apiclient/workflow"
-	workflowmocks "github.com/argoproj/argo-workflows/v3/pkg/apiclient/workflow/mocks"
-	wfv1 "github.com/argoproj/argo-workflows/v3/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/cmd/argo/commands/common"
+	workflowpkg "github.com/argoproj/argo-workflows/v4/pkg/apiclient/workflow"
+	workflowmocks "github.com/argoproj/argo-workflows/v4/pkg/apiclient/workflow/mocks"
+	wfv1 "github.com/argoproj/argo-workflows/v4/pkg/apis/workflow/v1alpha1"
+	"github.com/argoproj/argo-workflows/v4/util/logging"
 )
 
 func Test_retryWorkflows(t *testing.T) {
@@ -24,11 +24,11 @@ func Test_retryWorkflows(t *testing.T) {
 		cliSubmitOpts := common.CliSubmitOpts{}
 
 		c.On("RetryWorkflow", mock.Anything, mock.Anything).Return(&wfv1.Workflow{}, nil)
-
-		err := retryWorkflows(context.Background(), c, retryOpts, cliSubmitOpts, []string{"foo", "bar"})
+		ctx := logging.TestContext(t.Context())
+		err := retryWorkflows(ctx, c, retryOpts, cliSubmitOpts, []string{"foo", "bar"})
 		c.AssertNumberOfCalls(t, "RetryWorkflow", 2)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Retry workflow by selector", func(t *testing.T) {
@@ -56,7 +56,8 @@ func Test_retryWorkflows(t *testing.T) {
 		c.On("ListWorkflows", mock.Anything, wfListReq).Return(wfList, nil)
 		c.On("RetryWorkflow", mock.Anything, mock.Anything).Return(&wfv1.Workflow{}, nil)
 
-		err := retryWorkflows(context.Background(), c, retryOpts, cliSubmitOpts, []string{})
+		ctx := logging.TestContext(t.Context())
+		err := retryWorkflows(ctx, c, retryOpts, cliSubmitOpts, []string{})
 
 		c.AssertNumberOfCalls(t, "RetryWorkflow", 3)
 		for _, wf := range wfList.Items {
@@ -69,7 +70,7 @@ func Test_retryWorkflows(t *testing.T) {
 			c.AssertCalled(t, "RetryWorkflow", mock.Anything, retryReq)
 		}
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Retry workflow by selector and name", func(t *testing.T) {
@@ -98,7 +99,8 @@ func Test_retryWorkflows(t *testing.T) {
 
 		c.On("RetryWorkflow", mock.Anything, mock.Anything).Return(&wfv1.Workflow{}, nil)
 
-		err := retryWorkflows(context.Background(), c, retryOpts, cliSubmitOpts, []string{"foo", "qux"})
+		ctx := logging.TestContext(t.Context())
+		err := retryWorkflows(ctx, c, retryOpts, cliSubmitOpts, []string{"foo", "qux"})
 		// after de-duplication, there will be 4 workflows to retry
 		c.AssertNumberOfCalls(t, "RetryWorkflow", 4)
 
@@ -121,7 +123,7 @@ func Test_retryWorkflows(t *testing.T) {
 			NodeFieldSelector: "",
 		})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Retry workflow list error", func(t *testing.T) {
@@ -132,8 +134,9 @@ func Test_retryWorkflows(t *testing.T) {
 		}
 		cliSubmitOpts := common.CliSubmitOpts{}
 		c.On("ListWorkflows", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("mock error"))
-		err := retryWorkflows(context.Background(), c, retryOpts, cliSubmitOpts, []string{})
-		assert.Errorf(t, err, "mock error")
+		ctx := logging.TestContext(t.Context())
+		err := retryWorkflows(ctx, c, retryOpts, cliSubmitOpts, []string{})
+		require.Errorf(t, err, "mock error")
 	})
 
 	t.Run("Retry workflow error", func(t *testing.T) {
@@ -143,7 +146,8 @@ func Test_retryWorkflows(t *testing.T) {
 		}
 		cliSubmitOpts := common.CliSubmitOpts{}
 		c.On("RetryWorkflow", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("mock error"))
-		err := retryWorkflows(context.Background(), c, retryOpts, cliSubmitOpts, []string{"foo"})
-		assert.Errorf(t, err, "mock error")
+		ctx := logging.TestContext(t.Context())
+		err := retryWorkflows(ctx, c, retryOpts, cliSubmitOpts, []string{"foo"})
+		require.Errorf(t, err, "mock error")
 	})
 }
